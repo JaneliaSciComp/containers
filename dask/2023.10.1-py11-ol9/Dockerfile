@@ -32,7 +32,7 @@ RUN dnf update -y && \
         which
 
 # Install miniconda
-RUN wget https://github.com/conda-forge/miniforge/releases/download/23.3.1-1/Mambaforge-23.3.1-1-Linux-$(uname -m).sh \
+RUN wget https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Mambaforge-23.11.0-0-Linux-$(uname -m).sh \
     -O mamba-install.sh && \
     bash mamba-install.sh -b -p /opt/mambaforge
 
