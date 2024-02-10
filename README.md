@@ -4,14 +4,11 @@ Docker (OCI) containers for reusable workflow plugins. These are used in [Nextfl
 
 # Principles
 
-This repository borrows heavily from [BioContainers](https://github.com/BioContainers/containers) effort. 
-
 We want containers that:
 
 1) Are reproducible - if you rebuild the same Dockerfile a year later, you should get basically the same container. 
 2) Are optimized - We use standard techniques to speed up builds and we use multistage builds to reduce the size of the final image. 
-3) Include metadata -  We currently use [BioContainer metadata](https://github.com/BioContainers/specs/blob/master/container-specs.md)
-
+3) Include metadata -  every image includes [OCI metadata](https://specs.opencontainers.org/image-spec/annotations/)
 
 # Publishing images
 
@@ -28,13 +25,7 @@ echo $GITHUB_PACKAGE_TOKEN | docker login ghcr.io --username rokickik --password
 3. Build your image
 
 ```bash
-docker build stitching-spark/1.10.0 -t ghcr.io/janeliascicomp/stitching-spark:1.10.0
+./build.sh stitching-spark 1.10.0
 ```
 
-4. Push your image
-
-```bash
-docker push ghcr.io/janeliascicomp/stitching-spark:1.10.0
-```
-
-
+The build script adds important metadata to the image, and then asks you if you want to push it to GCR. 
