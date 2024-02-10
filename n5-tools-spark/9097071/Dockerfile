@@ -29,8 +29,9 @@ LABEL software="n5-spark" \
     about.license="SPDX:GPL-2.0" \
     about.license_file="/app/LICENSE.txt" \
     about.tags="implemented-in::java, interface::commandline, role::program" \
-    maintainer="rokickik@janelia.hhmi.org"
-    
+    maintainer="rokickik@janelia.hhmi.org" \
+    org.opencontainers.image.source="https://github.com/JaneliaSciComp/containers"
+
 COPY --from=builder /tmp/app/LICENSE.txt /app/LICENSE
 COPY --from=builder /tmp/app/VERSION /app
 COPY --from=builder /tmp/app/app.jar /app
