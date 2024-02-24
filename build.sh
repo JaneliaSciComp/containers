@@ -2,8 +2,9 @@
 
 set -euo pipefail
 
-readonly container="$1"
-readonly version="$2"
+readonly path="$1"
+readonly container=$(echo $path | cut -d '/' -f 1)
+readonly version=$(echo $path | cut -d '/' -f 2)
 
 now="$(date --utc --iso-8601=seconds)"
 repo_url="https://github.com/JaneliaSciComp/containers"
