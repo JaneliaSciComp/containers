@@ -20,6 +20,7 @@ RUN echo "$N5_SPARK_GIT_HASH" > /tmp/app/VERSION
 
 # Create final image
 FROM ghcr.io/janeliascicomp/spark:${SPARK_VERSION}
+ARG N5_SPARK_GIT_HASH
 
 LABEL \
     org.opencontainers.image.title="N5 Spark Tools" \
@@ -28,6 +29,7 @@ LABEL \
     org.opencontainers.image.licenses="BSD-3-Clause AND BSD-2-Clause" \
     org.opencontainers.image.version=${N5_SPARK_GIT_HASH}
 
+WORKDIR /app
 COPY --from=builder /tmp/app/LICENSE.txt /app/LICENSE
 COPY --from=builder /tmp/app/VERSION /app
 COPY --from=builder /tmp/app/app.jar /app
