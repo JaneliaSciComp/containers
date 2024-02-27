@@ -2,7 +2,7 @@
 FROM  ghcr.io/janeliascicomp/dask:2023.10.1-py11-ol9
 
 ARG TARGETPLATFORM
-ARG GIT_TAG=dev
+ARG GIT_TAG=main
 
 RUN dnf install -y git
 
