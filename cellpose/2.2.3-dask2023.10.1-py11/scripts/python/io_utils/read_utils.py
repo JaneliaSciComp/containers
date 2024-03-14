@@ -17,8 +17,7 @@ def open(container_path, subpath, block_coords=None):
 
     if container_ext == '.nrrd':
         print(f'Open nrrd {container_path} ({real_container_path})', flush=True)
-        im = read_nrrd(container_path, block_coords=block_coords)
-        return im, {}
+        return read_nrrd(container_path, block_coords=block_coords)
     elif container_ext == '.tif' or container_ext == '.tiff':
         print(f'Open tiff {container_path} ({real_container_path})', flush=True)
         im = read_tiff(container_path, block_coords=block_coords)
@@ -47,5 +46,5 @@ def read_tiff(input_path, block_coords=None):
 
 
 def read_nrrd(input_path, block_coords=None):
-    im = nrrd.read(input_path)
-    return im[block_coords] if block_coords is not None else im
+    im, dict = nrrd.read(input_path)
+    return im[block_coords] if block_coords is not None else im, dict

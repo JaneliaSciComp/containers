@@ -5,6 +5,7 @@ dependencies:
   - zarr=2.13.3
   - numcodecs>=0.9.1
   - scikit-image>=0.21.0
+  - tifffile
   - pip
   - pip:
     - argparse
