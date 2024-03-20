@@ -12,9 +12,8 @@ WORKDIR /app/bigstream
 ENV BIGSTREAM_TAG=goinac-dev
 RUN git clone --branch $BIGSTREAM_TAG --depth 1 https://github.com/JaneliaSciComp/bigstream.git .
 
-COPY conda-env.yaml .
 # Remove the data and the git repo to reduce space
-RUN echo "Remove test data from the container" && rm -rf resources && rm -rf .git
+RUN echo "Remove test data from the container" && rm -rf resources
 
 # Use the base environment from the baseImage
 RUN mamba env update -n base -f conda-env.yaml
