@@ -155,14 +155,18 @@ def _run_segmentation(args):
 
         if (args.output_blocksize is not None and
             len(args.output_blocksize) == image_ndim):
-            output_blocks = args.output_blocksize[::-1] # make it zyx
+            zyx_blocksize = args.output_blocksize[::-1] # make it zyx
+            output_blocks = tuple([d if d > 0 else image_shape[di] 
+                                   for di,d in enumerate(zyx_blocksize)])
         else:
             # default to output_chunk_size
             output_blocks = (args.output_chunk_size,) * image_ndim
 
         if (args.process_blocksize is not None and
             len(args.process_blocksize) == image_ndim):
-            process_blocksize = args.process_blocksize[::-1] # make it zyx
+            zyx_process_size = args.process_blocksize[::-1] # make it zyx
+            process_blocksize = tuple([d if d > 0 else image_shape[di] 
+                                        for di,d in enumerate(zyx_process_size)])
         else:
             process_blocksize = output_blocks
 
