@@ -40,6 +40,8 @@ ENV PATH=/opt/mambaforge/bin:${PATH}
 
 COPY conda-env.yml /tmp/
 
+ENV NUMBA_CACHE_DIR=/tmp/numba_cache
+
 RUN mamba env update -n base -f /tmp/conda-env.yml
 
 RUN rm -rf /opt/mambaforge/pkgs
