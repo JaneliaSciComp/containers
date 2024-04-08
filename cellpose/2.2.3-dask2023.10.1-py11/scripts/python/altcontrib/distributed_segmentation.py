@@ -458,6 +458,9 @@ def _get_blocks_faces_info(blocks_coords, face_depth, image):
     face_slices_and_axes = []
     for ax in range(ndim):
         for sl in blocks_coords:
+            if sl[ax].start == 0:
+                # this is a start block on this axis
+                continue
             if sl[ax].stop == image.shape[ax]:
                 # this is an end block on this axis
                 continue
@@ -467,6 +470,7 @@ def _get_blocks_faces_info(blocks_coords, face_depth, image):
             )
             face_slice_coords = tuple(slice_to_append)
             face_slices_and_axes.append((face_slice_coords, ax))
+    print('Face slices for label mapping:', face_slices_and_axes, flush=True)
     return face_slices_and_axes
 
 
