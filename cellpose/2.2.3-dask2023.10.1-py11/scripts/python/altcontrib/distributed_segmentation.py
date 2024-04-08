@@ -41,7 +41,7 @@ def distributed_segmentation(
         max_tasks=-1,
         gpu_batch_size=8,
         iou_depth=1,
-        iou_threshold=0.7,
+        iou_threshold=0,
         persist_labeled_blocks=False,
         client=None
 ):
@@ -405,8 +405,8 @@ def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
     return labels_res, labeled_blocks_info, max_label
 
 
-def _link_labels(labels, blocks_index_and_coords, max_label, face_depth, iou_threshold,
-                 client):
+def _link_labels(labels, blocks_index_and_coords, max_label, face_depth,
+                 iou_threshold, client):
     label_groups = _get_adjacent_label_mappings(labels,
                                                 blocks_index_and_coords,
                                                 face_depth,
@@ -489,45 +489,54 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
     face = image[face_slice].compute()
     print(f'Get label grouping accross axis {axis} for {face_slice} image',
           flush=True)
-    unique, unique_indexes = np.unique(face, return_index=True)
+    unique, unique_indexes = np.unique(
+        face, return_index=True,
+    )
     print(f'Unique labels for face {face_slice} ({face_shape})',
             f'along {axis} axis', unique, unique_indexes,
             flush=True)
     face0, face1 = np.split(face, 2, axis)
-    face0_unique, face0_unique_indexes = np.unique(face0, return_index=True)
-    face1_unique, face1_unique_indexes = np.unique(face1, return_index=True)
-    print(f'Unique labels for {face_slice}:face0',
-            face0_unique, face0_unique_indexes,
+    face0_unique, face0_unique_indexes, face0_unique_counts = np.unique(
+        face0.reshape(-1), return_index=True, return_counts=True,
+    )
+    face1_unique, face1_unique_indexes, face1_unique_counts = np.unique(
+        face1.reshape(-1), return_index=True, return_counts=True,
+    )
+    print(f'Unique labels for face0 of {face_slice} with shape: {face0.shape}',
+            face0_unique, face0_unique_indexes, face0_unique_counts,
             flush=True)
-    print(f'Unique labels for {face_slice}:face1',
-            face1_unique, face1_unique_indexes,
+    print(f'Unique labels for face1 of {face_slice} with shape: {face1.shape}',
+            face1_unique, face1_unique_indexes, face1_unique_counts,
             flush=True)
 
     intersection = sk_metrics.confusion_matrix(face0.reshape(-1), face1.reshape(-1))
     sum0 = intersection.sum(axis=0, keepdims=True)
     sum1 = intersection.sum(axis=1, keepdims=True)
-
     # Note that sum0 and sum1 broadcast to square matrix size.
     union = sum0 + sum1 - intersection
-
     # Ignore errors with divide by zero, which the np.where sets to zero.
     with np.errstate(divide="ignore", invalid="ignore"):
-        iou = np.where(intersection > 0, intersection / union, 0).astype(np.uint32)
+        iou = np.where(intersection > 0, intersection / union, 0)
+    print(f'Face intersection for {face_slice}',
+            'sum0:', sum0, 'sum1:', sum1,
+            'intersection:', intersection, 'union:', union,
+            'iou:', iou,
+            flush=True)
 
-    labels0, labels1 = np.nonzero(iou >= iou_threshold)
-    print(f'labels0 ({labels0.shape}):', labels0, flush=True)
-    print(f'labels1 ({labels1.shape}):', labels1, flush=True)
+    labels0, labels1 = np.nonzero(iou > iou_threshold)
+    print(f'labels0 for {face_slice}:', labels0, flush=True)
+    print(f'labels1 for {face_slice}:', labels1, flush=True)
 
     labels0_orig = unique[labels0]
     labels1_orig = unique[labels1]
-    print(f'unique labels0 ({labels0_orig.shape}):', labels0_orig, flush=True)
-    print(f'unique labels1 ({labels1_orig.shape}):', labels1_orig, flush=True)
+    print(f'orig labels0 for {face_slice}:', labels0_orig, flush=True)
+    print(f'orig labels1 for {face_slice}:', labels1_orig, flush=True)
     grouped = np.stack([labels0_orig, labels1_orig])
 
-    print(f'Current labels ({grouped.shape}):', grouped, flush=True)
+    print(f'Current labels for {face_slice}:', grouped, flush=True)
     # Discard any mappings with bg pixels
     valid = np.all(grouped != 0, axis=0).astype(np.uint32)
-    print(f'Valid labels ({valid.shape}):', valid, flush=True)
+    print(f'Valid labels for {face_slice}:', valid, flush=True)
     # if there's not more than one label return it as is
     return (grouped[:, valid] if grouped.size > 2 else grouped)
 

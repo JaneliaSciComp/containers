@@ -102,7 +102,7 @@ def _define_args():
     distributed_args.add_argument('--iou-threshold', '--iou_threshold',
                                   dest='iou_threshold',
                                   type=float,
-                                  default=0.7,
+                                  default=0,
                                   help='Intersection over union threshold')
     distributed_args.add_argument('--iou-depth', '--iou_depth',
                                   dest='iou_depth',
