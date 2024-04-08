@@ -141,14 +141,15 @@ def distributed_segmentation(
     if np.prod(nblocks) > 1:
         working_labeled_blocks = labeled_blocks
         print(f'Submit link labels for {nblocks} label blocks', flush=True)
-        labeled_blocks_coords = [bi[1] for bi in labeled_blocks_info]
+        labeled_blocks_index_and_coords = [(bi[0], bi[1])
+                                           for bi in labeled_blocks_info]
         new_labeling = _link_labels(
             working_labeled_blocks,
-            labeled_blocks_coords,
+            labeled_blocks_index_and_coords,
             max_label,
             iou_depth,
             iou_threshold,
-            client
+            client,
         )
         # save labels to a temporary file for the relabeling process
         labels_filename = f'{output_dir}/labels.npy'
@@ -404,10 +405,10 @@ def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
     return labels_res, labeled_blocks_info, max_label
 
 
-def _link_labels(labels, blocks_coords, max_label, face_depth, iou_threshold,
+def _link_labels(labels, blocks_index_and_coords, max_label, face_depth, iou_threshold,
                  client):
     label_groups = _get_adjacent_label_mappings(labels,
-                                                blocks_coords,
+                                                blocks_index_and_coords,
                                                 face_depth,
                                                 iou_threshold,
                                                 client)
@@ -417,21 +418,21 @@ def _link_labels(labels, blocks_coords, max_label, face_depth, iou_threshold,
     return dask.delayed(_get_labels_connected_comps)(label_groups, max_label+1)
 
 
-def _get_adjacent_label_mappings(labels, blocks_coords, block_face_depth,
-                                 iou_threshold,
+def _get_adjacent_label_mappings(labels, blocks_index_and_coords,
+                                 block_face_depth, iou_threshold,
                                  client):
     print(f'{time.ctime(time.time())}',
           'Create adjacency graph for', labels,
           flush=True)
-    blocks_faces_and_axes = _get_blocks_faces_info(blocks_coords,
-                                                   block_face_depth,
-                                                   labels)
+    blocks_faces_by_axes = _get_blocks_faces_info(blocks_index_and_coords,
+                                                  block_face_depth,
+                                                  labels)
     print(f'{time.ctime(time.time())}',
-          f'Invoke label mapping for {len(blocks_faces_and_axes)} faces',
+          f'Invoke label mapping for {len(blocks_faces_by_axes)} faces',
           flush=True)
     mapped_labels = client.map(
         _across_block_label_grouping,
-        blocks_faces_and_axes,
+        blocks_faces_by_axes,
         iou_threshold=iou_threshold,
         image=labels
     )
@@ -452,39 +453,55 @@ def _get_adjacent_label_mappings(labels, blocks_coords, block_face_depth,
     return mappings
 
 
-def _get_blocks_faces_info(blocks_coords, face_depth, image):
+def _get_blocks_faces_info(blocks_index_and_coords, face_depth, image):
     ndim = image.ndim
+    image_shape = image.shape
     depth = da.overlap.coerce_depth(ndim, face_depth)
     face_slices_and_axes = []
-    for ax in range(ndim):
-        for sl in blocks_coords:
-            if sl[ax].start == 0:
-                # this is a start block on this axis
+    for bi_and_coords in blocks_index_and_coords:
+        block_index, block_coords = bi_and_coords
+        print(f'Get faces for: {block_index}:{block_coords}', flush=True)
+        block_faces = []
+        for ax in range(ndim):
+            if block_coords[ax].stop >= image_shape[ax]:
+                # end block on {ax}
                 continue
-            if sl[ax].stop == image.shape[ax]:
-                # this is an end block on this axis
-                continue
-            slice_to_append = list(sl)
-            slice_to_append[ax] = slice(
-                sl[ax].stop - depth[ax], sl[ax].stop + depth[ax]
-            )
-            face_slice_coords = tuple(slice_to_append)
-            face_slices_and_axes.append((face_slice_coords, ax))
-    print('Face slices for label mapping:', face_slices_and_axes, flush=True)
+            block_face = tuple(
+                [s if si != ax
+                 else slice(block_coords[ax].stop - depth[ax],
+                            block_coords[ax].stop + depth[ax])
+                            for si,s in enumerate(block_coords)])
+            block_faces.append((ax, block_face))
+        print(f'Block: {block_index} - add {len(block_faces)}:',
+              block_faces, flush=True)
+        face_slices_and_axes.extend(block_faces)
+    print(f'There are {len(face_slices_and_axes)} face slices to map:',
+          face_slices_and_axes, flush=True)
     return face_slices_and_axes
 
 
 def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
-    face_slice, axis = face_info
+    axis, face_slice = face_info
     face_shape = tuple([s.stop-s.start for s in face_slice])
-    print(f'Group labels for face {face_slice} {face_shape} ',
+    print(f'Group labels for face {face_slice} ({face_shape}) ',
             f'along {axis} axis',
             flush=True)
     face = image[face_slice].compute()
-    print(f'Get label grouping accross axis {axis} from {face.shape} image',
+    print(f'Get label grouping accross axis {axis} for {face_slice} image',
           flush=True)
-    unique = np.unique(face)
+    unique, unique_indexes = np.unique(face, return_index=True)
+    print(f'Unique labels for face {face_slice} ({face_shape})',
+            f'along {axis} axis', unique, unique_indexes,
+            flush=True)
     face0, face1 = np.split(face, 2, axis)
+    face0_unique, face0_unique_indexes = np.unique(face0, return_index=True)
+    face1_unique, face1_unique_indexes = np.unique(face1, return_index=True)
+    print(f'Unique labels for {face_slice}:face0',
+            face0_unique, face0_unique_indexes,
+            flush=True)
+    print(f'Unique labels for {face_slice}:face1',
+            face1_unique, face1_unique_indexes,
+            flush=True)
 
     intersection = sk_metrics.confusion_matrix(face0.reshape(-1), face1.reshape(-1))
     sum0 = intersection.sum(axis=0, keepdims=True)
