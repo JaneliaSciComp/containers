@@ -518,8 +518,7 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
     with np.errstate(divide="ignore", invalid="ignore"):
         iou = np.where(intersection > 0, intersection / union, 0)
     print(f'Face intersection for {face_slice}',
-            'sum0:', sum0, 'sum1:', sum1,
-            'intersection:', intersection, 'union:', union,
+            'sum0:', sum0, 'sum1:', sum1.transpose(),
             'iou:', iou,
             flush=True)
 
@@ -531,14 +530,19 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
     labels1_orig = unique[labels1]
     print(f'orig labels0 for {face_slice}:', labels0_orig, flush=True)
     print(f'orig labels1 for {face_slice}:', labels1_orig, flush=True)
-    grouped = np.stack([labels0_orig, labels1_orig])
-
+    if labels1_orig.max() < labels0_orig.max():
+        grouped = np.stack([labels1_orig, labels0_orig])
+    else:
+        grouped = np.stack([labels0_orig, labels1_orig])
     print(f'Current labels for {face_slice}:', grouped, flush=True)
     # Discard any mappings with bg pixels
     valid = np.all(grouped != 0, axis=0).astype(np.uint32)
-    print(f'Valid labels for {face_slice}:', valid, flush=True)
     # if there's not more than one label return it as is
-    return (grouped[:, valid] if grouped.size > 2 else grouped)
+    label_mapping = (grouped[:, valid] if grouped.size > 2 else grouped)
+    print(f'Valid labels for {face_slice}:', 
+          'valid mapping:', valid,
+          'label mapping:', label_mapping, flush=True)
+    return label_mapping
 
 
 def _get_labels_connected_comps(label_groups, nlabels):
