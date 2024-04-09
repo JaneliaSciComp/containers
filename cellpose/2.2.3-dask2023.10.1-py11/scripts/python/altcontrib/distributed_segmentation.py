@@ -536,11 +536,10 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
         grouped = np.stack([labels0_orig, labels1_orig])
     print(f'Current labels for {face_slice}:', grouped, flush=True)
     # Discard any mappings with bg pixels
-    valid = np.all(grouped != 0, axis=0).astype(np.uint32)
+    valid = np.all(grouped != 0, axis=0)
     # if there's not more than one label return it as is
     label_mapping = (grouped[:, valid] if grouped.size > 2 else grouped)
     print(f'Valid labels for {face_slice}:', 
-          'valid mapping:', valid,
           'label mapping:', label_mapping, flush=True)
     return label_mapping
 
