@@ -439,17 +439,18 @@ def _get_adjacent_label_mappings(labels, blocks_index_and_coords,
     print(f'{time.ctime(time.time())}',
           f'Start collecting label mappings',
           flush=True)
-    all_mappings = [ da.empty((2, 0), dtype=labels.dtype, chunks=1) ]
+    all_mappings = [ np.empty((2, 0), dtype=labels.dtype) ]
     completed_mapped_labels = as_completed(mapped_labels, with_results=True)
     for _,mapped in completed_mapped_labels:
         print('Append mapping:', mapped, flush=True)
         all_mappings.append(mapped)
 
-    mappings = da.concatenate(all_mappings, axis=1)
+    mappings = np.concatenate(all_mappings, axis=1)
     print(f'{time.ctime(time.time())}',
           f'Concatenated {len(all_mappings)} mappings ->',
           f'{mappings.shape}',
           flush=True)
+    print('mappings', mappings, flush=True)
     return mappings
 
 
@@ -538,7 +539,7 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
     # Discard any mappings with bg pixels
     valid = np.all(grouped != 0, axis=0)
     # if there's not more than one label return it as is
-    label_mapping = (grouped[:, valid] if grouped.size > 2 else grouped)
+    label_mapping = grouped[:, valid]
     print(f'Valid labels for {face_slice}:', 
           'label mapping:', label_mapping, flush=True)
     return label_mapping
@@ -558,10 +559,11 @@ def _get_labels_connected_comps(label_groups, nlabels):
 def _mappings_as_csr(lmapping, n):
     print(f'Generate csr matrix for {lmapping.shape} labels', flush=True)
     l0 = lmapping[0, :]
-    l1 = lmapping[0, :]
+    l1 = lmapping[1, :]
     v = np.ones_like(l0)
     mat = scipy.sparse.coo_matrix((v, (l0, l1)), shape=(n, n))
     csr_mat = mat.tocsr()
+    print('Labels mapping as csr matrix', csr_mat, flush=True)
     return csr_mat
 
 
