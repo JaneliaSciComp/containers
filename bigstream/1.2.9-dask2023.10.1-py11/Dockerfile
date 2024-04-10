@@ -9,7 +9,7 @@ RUN dnf install -y \
 WORKDIR /app/bigstream
 
 # install bigstream
-ENV BIGSTREAM_TAG=goinac-dev
+ENV BIGSTREAM_TAG=master
 RUN git clone --branch $BIGSTREAM_TAG --depth 1 https://github.com/JaneliaSciComp/bigstream.git .
 
 # Remove the data and the git repo to reduce space
