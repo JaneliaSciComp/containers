@@ -8,9 +8,11 @@ RUN dnf install -y \
 
 WORKDIR /app/bigstream
 
-# install bigstream
-ENV BIGSTREAM_TAG=master
-RUN git clone --branch $BIGSTREAM_TAG --depth 1 https://github.com/JaneliaSciComp/bigstream.git .
+# install bigstream from the specified commit
+ENV BIGSTREAM_BRANCH=goinac-dev
+ENV BIGSTREAM_COMMIT=6d4d443
+RUN git clone --branch ${BIGSTREAM_BRANCH} --depth 1 https://github.com/JaneliaSciComp/bigstream.git . && \
+    git reset --hard ${BIGSTREAM_COMMIT}
 
 # Remove the data and the git repo to reduce space
 RUN echo "Remove test data from the container" && rm -rf resources
