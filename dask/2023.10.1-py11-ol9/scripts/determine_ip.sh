@@ -22,7 +22,7 @@ else
     # Take the last IP that's listed by hostname -i.
     # This hack works on Janelia Cluster and AWS EC2.
     local_ip=`hostname -i | rev | cut -d' ' -f1 | rev`
-    echo "Use Spark IP: $local_ip"
+    echo "Use IP: $local_ip"
     if [[ -z "${local_ip}" ]] ; then
         echo "Could not determine local IP: local_ip is empty"
         exit 1
