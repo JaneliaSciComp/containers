@@ -1,7 +1,6 @@
 channels:
   - conda-forge
   - pytorch
-  - defaults
 dependencies:
   - pip
   - flatten_json
