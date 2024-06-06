@@ -19,13 +19,21 @@ Containers in this repository are published as packages in the  GitHub Container
 2. Log into the registry
 
 ```bash
-echo $GITHUB_PACKAGE_TOKEN | docker login ghcr.io --username rokickik --password-stdin
+echo $GITHUB_PACKAGE_TOKEN | docker login ghcr.io --username $USER --password-stdin
 ```
 
 3. Build your image
 
 ```bash
-./build.sh stitching-spark 1.10.0
+./build.sh stitching-spark/1.10.0
 ```
 
 The build script adds important metadata to the image, and then asks you if you want to push it to GCR. 
+
+4. Reference your image
+
+The image will be available in GHCR, but needs to be [made public manually](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-visibility-of-packages-for-your-personal-account). After that, it can be referenced like this:
+
+```bash
+ghcr.io/janeliascicomp/toolname:1.0.0
+```
