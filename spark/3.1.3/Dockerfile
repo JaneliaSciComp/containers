@@ -4,6 +4,9 @@ FROM apache/spark:v${SPARK_VERSION}
 ARG SPARK_VERSION
 ARG TARGETPLATFORM
 
+USER root
+RUN apt-get install -y net-tools
+
 LABEL \
     org.opencontainers.image.title="Apache Spark" \
     org.opencontainers.image.description="Apache Spark is a unified analytics engine for large-scale data processing. This container combines the Spark runtime with additional scripts for simplified creation of Spark clusters." \
