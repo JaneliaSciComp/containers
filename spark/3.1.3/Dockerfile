@@ -4,6 +4,8 @@ FROM apache/spark:v${SPARK_VERSION}
 ARG SPARK_VERSION
 ARG TARGETPLATFORM
 
+# Reset user to root so that we can install missing packages
+# and the image works in Singularity
 USER root
 RUN apt-get install -y net-tools
 
@@ -13,9 +15,6 @@ LABEL \
     org.opencontainers.image.authors="rokickik@janelia.hhmi.org" \
     org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.version=${SPARK_VERSION}
-
-# Reset user to root so that the image works in Singularity
-USER 0
 
 # Save version inside container
 RUN echo "${SPARK_VERSION}" > /opt/spark/VERSION

@@ -17,7 +17,7 @@ rm -f ${spark_master_log_file} || true
 # Create Spark configuration
 echo "Creating Spark configuration at ${spark_config_filepath}"
 mkdir -p `dirname ${spark_config_filepath}`
-cat <<EOF > ${spark_config_filepath}
+cat > ${spark_config_filepath} <<EOF
 spark.rpc.askTimeout=300s
 spark.storage.blockManagerHeartBeatMs=30000
 spark.rpc.retry.wait=30s
@@ -27,6 +27,8 @@ spark.driver.maxResultSize=0
 spark.worker.cleanup.enabled=true
 spark.local.dir=${spark_local_dir}
 EOF
+
+echo "Created spark config file: $(cat ${spark_config_filepath})"
 
 # Initialize the environment for Spark
 echo "Initializing Spark environment..."
