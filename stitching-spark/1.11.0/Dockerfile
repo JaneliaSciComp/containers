@@ -13,9 +13,8 @@ RUN apt update \
 # Checkout and build the code
 WORKDIR /tmp/app
 RUN git clone --branch ${STITCHING_SPARK_GIT_TAG} --depth 1 https://github.com/JaneliaScicomp/stitching-spark.git . \
-    && git submodule update --init --recursive
-
-RUN ./mvnw clean package
+ && git submodule update --init --recursive \
+ && ./mvnw clean package -DskipTests
 
 # Find the built jar, based on the version in the pom file
 RUN xq -x '/project/artifactId' pom.xml > target-name \
