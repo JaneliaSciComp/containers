@@ -2,6 +2,7 @@ ARG SPARK_VERSION=3.1.3
 
 FROM apache/spark:v${SPARK_VERSION}
 ARG SPARK_VERSION
+ARG TARGETPLATFORM
 
 LABEL \
     org.opencontainers.image.title="Apache Spark" \

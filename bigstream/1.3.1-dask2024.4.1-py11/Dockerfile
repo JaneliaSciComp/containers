@@ -10,7 +10,7 @@ WORKDIR /app/bigstream
 
 # install bigstream from the specified commit
 ENV BIGSTREAM_BRANCH=goinac-dev
-ENV BIGSTREAM_COMMIT=109ce28
+ENV BIGSTREAM_COMMIT=7be3948
 RUN git clone --branch ${BIGSTREAM_BRANCH} --depth 1 https://github.com/JaneliaSciComp/bigstream.git . && \
     git reset --hard ${BIGSTREAM_COMMIT}
 
