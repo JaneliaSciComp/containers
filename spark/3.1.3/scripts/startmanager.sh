@@ -49,8 +49,7 @@ set -x
 /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master \
     -h $local_ip \
     --properties-file ${spark_config_filepath} \
-    ${args} \
-    &> ${spark_master_log_file} &
+    ${args} &> ${spark_master_log_file} &
 spid=$!
 set +x
 
