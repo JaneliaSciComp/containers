@@ -7,7 +7,8 @@ ARG TARGETPLATFORM
 # Reset user to root so that we can install missing packages
 # and the image works in Singularity
 USER root
-RUN apt-get install -y net-tools curl
+RUN apt update -y \
+ && apt-get install -y net-tools curl
 
 LABEL \
     org.opencontainers.image.title="Apache Spark" \
