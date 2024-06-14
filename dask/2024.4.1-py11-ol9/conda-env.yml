@@ -13,7 +13,7 @@ dependencies:
   - jupyter-server-proxy
   - lz4>=4.3.2
   - msgpack-python=1.0.7
-  - nomkl=3.0
+  - nomkl
   - numpy>=1.26.0
   - pandas=2.2.2
   - psutil>=5.7.2
