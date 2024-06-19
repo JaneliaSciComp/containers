@@ -1,6 +1,8 @@
 # Create final image
 FROM ghcr.io/janeliascicomp/dask:2024.4.1-py11-ol9
 ARG TARGETPLATFORM
+ARG BIGSTREAM_BRANCH=goinac-dev
+ARG BIGSTREAM_COMMIT=135c03f
 
 RUN dnf install -y \
         git \
@@ -9,8 +11,6 @@ RUN dnf install -y \
 WORKDIR /app/bigstream
 
 # install bigstream from the specified commit
-ENV BIGSTREAM_BRANCH=goinac-dev
-ENV BIGSTREAM_COMMIT=8902277
 RUN git clone --branch ${BIGSTREAM_BRANCH} --depth 1 https://github.com/JaneliaSciComp/bigstream.git . && \
     git reset --hard ${BIGSTREAM_COMMIT}
 
