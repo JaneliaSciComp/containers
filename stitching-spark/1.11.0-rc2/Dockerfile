@@ -12,7 +12,7 @@ RUN apt update \
 
 # Checkout and build the code
 WORKDIR /tmp/app
-RUN git clone --branch ${STITCHING_SPARK_GIT_TAG} --depth 1 https://github.com/JaneliaScicomp/stitching-spark.git . \
+RUN git clone --branch ${STITCHING_SPARK_GIT_TAG} --depth 1 https://github.com/JaneliaSciComp/stitching-spark.git . \
  && git submodule update --init --recursive \
  && ./mvnw clean package -DskipTests
 
