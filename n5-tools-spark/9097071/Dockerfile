@@ -2,7 +2,7 @@ ARG SPARK_VERSION=3.1.3
 ARG N5_SPARK_GIT_HASH=9097071
 
 # Temporary container for building cleanly
-FROM azul/zulu-openjdk-debian:8u412-jdk as builder
+FROM azul/zulu-openjdk-debian:8u412-jdk AS builder
 ARG N5_SPARK_GIT_HASH
 ARG TARGETPLATFORM
 
@@ -14,7 +14,7 @@ RUN apt update \
 WORKDIR /tmp/app
 RUN git clone https://github.com/saalfeldlab/n5-spark . \
     && git reset --hard $N5_SPARK_GIT_HASH \
-    && mvn package -P fatjar,spark-local
+    && mvn package -P fatjar,spark-local -DskipTests
 
 # Find the built jar, based on the version in the pom file
 RUN xq -x '/project/artifactId' pom.xml > target-name \
