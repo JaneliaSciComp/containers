@@ -39,5 +39,4 @@ WORKDIR /app
 COPY --from=builder /tmp/app/LICENSE.txt /app/LICENSE
 COPY --from=builder /tmp/app/VERSION /app
 COPY --from=builder /tmp/app/app.jar /app
-COPY --from=builder /buildinfo /app
 
