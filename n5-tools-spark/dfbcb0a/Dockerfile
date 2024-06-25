@@ -1,4 +1,4 @@
-ARG SPARK_VERSION=3.1.3
+ARG SPARK_VERSION=3.2.1
 ARG N5_SPARK_GIT_HASH=dfbcb0a
 
 # Temporary container for building cleanly
