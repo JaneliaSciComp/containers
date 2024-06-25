@@ -2,7 +2,7 @@ ARG SPARK_VERSION=3.1.3
 ARG STITCHING_SPARK_GIT_TAG=1.11.0-rc2
 
 # Temporary container for building cleanly
-FROM azul/zulu-openjdk-debian:8u412-jdk as builder
+FROM azul/zulu-openjdk-debian:8u412-jdk AS builder
 ARG STITCHING_SPARK_GIT_TAG
 ARG TARGETPLATFORM
 

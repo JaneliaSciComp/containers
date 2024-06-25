@@ -2,7 +2,7 @@ ARG SPARK_VERSION=3.1.3
 ARG STITCHING_SPARK_GIT_TAG=1.10.0
 
 # Temporary container for building cleanly
-FROM janeliascicomp/builder:1.2.1 as builder
+FROM janeliascicomp/builder:1.2.1 AS builder
 ARG STITCHING_SPARK_GIT_TAG
 
 # Checkout and build the code
