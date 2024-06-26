@@ -2,7 +2,7 @@
 FROM ghcr.io/janeliascicomp/dask:2024.4.1-py11-ol9
 ARG TARGETPLATFORM
 ARG BIGSTREAM_BRANCH=goinac-dev
-ARG BIGSTREAM_COMMIT=d9189dc
+ARG BIGSTREAM_COMMIT=a8cd7b5
 
 RUN dnf install -y \
         git \
