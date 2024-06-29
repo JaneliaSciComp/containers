@@ -2,7 +2,7 @@
 FROM ghcr.io/janeliascicomp/dask:2024.4.1-py11-ol9
 ARG TARGETPLATFORM
 ARG BIGSTREAM_BRANCH=goinac-dev
-ARG BIGSTREAM_COMMIT=079bb47
+ARG BIGSTREAM_COMMIT=0fd64d6
 
 RUN dnf install -y \
         git \
@@ -28,5 +28,6 @@ ENV PYTHONPATH=/app/bigstream
 
 # Use the base environment from the baseImage
 RUN mamba env update -n base -f conda-env.yaml
+RUN echo ${BIGSTREAM_COMMIT} > .commit
 
 RUN pip install .
