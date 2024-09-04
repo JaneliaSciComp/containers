@@ -2,7 +2,7 @@
 FROM ghcr.io/janeliascicomp/dask:2024.4.1-py11-ol9
 ARG TARGETPLATFORM
 ARG BIGSTREAM_BRANCH=goinac-dev
-ARG BIGSTREAM_COMMIT=0fd64d6
+ARG BIGSTREAM_COMMIT=86f06c6
 
 RUN dnf install -y \
         git \
@@ -11,8 +11,8 @@ RUN dnf install -y \
 WORKDIR /app/bigstream
 
 # install bigstream from the specified commit
-RUN git clone --branch ${BIGSTREAM_BRANCH} --depth 1 https://github.com/JaneliaSciComp/bigstream.git . && \
-    git reset --hard ${BIGSTREAM_COMMIT}
+RUN git clone --branch ${BIGSTREAM_BRANCH} --depth 1 https://github.com/JaneliaSciComp/bigstream.git . \
+ && git reset --hard ${BIGSTREAM_COMMIT}
 
 # Remove the data and the git repo to reduce space
 RUN echo "Remove test data from the container" && rm -rf resources
