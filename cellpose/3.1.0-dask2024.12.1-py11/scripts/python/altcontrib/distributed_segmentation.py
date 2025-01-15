@@ -19,7 +19,7 @@ from sklearn import metrics as sk_metrics
 logger = logging.getLogger(__name__)
 
 
-def distributed_segmentation(
+def distributed_eval(
         image_container_path,
         image_subpath,
         image_shape,
@@ -72,8 +72,8 @@ def distributed_segmentation(
     nblocks = np.ceil(np.array(image_shape) / blockchunks).astype(int)
     logger.info((
         f'Blocksize:{blockchunks}, '
-        f'overlap:{blockoverlaps} => {nblocks} blocks')
-    )
+        f'overlap:{blockoverlaps} => {nblocks} blocks'
+    ))
 
     blocks_info = []
     for (i, j, k) in np.ndindex(*nblocks):
@@ -112,7 +112,7 @@ def distributed_segmentation(
         gpu_batch_size=gpu_batch_size,
     )
 
-    print('Cache cellpose models', model_type, flush=True)
+    logger.info(f'Cache cellpose models {model_type}')
     get_user_models()
 
     segment_block = functools.partial(
@@ -124,9 +124,7 @@ def distributed_segmentation(
         blockoverlaps=blockoverlaps,
     )
 
-    print(f'{time.ctime(start_time)} ',
-          f'Start segmenting: {len(blocks_info)} blocks',
-          flush=True)
+    logger.info(f'Start segmenting: {len(blocks_info)} blocks')
     segment_block_res = dask_client.map(
         segment_block,
         blocks_info,
@@ -206,13 +204,11 @@ def _read_block_data(block_info, image_container_path, image_subpath=None):
 def _throttle(m, sem):
     def throttled_m(*args, **kwargs):
         with sem:
-            print(f'{time.ctime(time.time())} Secured slot to run {m}',
-                  flush=True)
+            logger.debug(f'Secured slot to run {m}')
             try:
                 return m(*args, **kwargs)
             finally:
-                print(f'{time.ctime(time.time())} Release slot used for {m}',
-                      flush=True)
+                logger.debug(f'Release slot used for {m}')
 
     return throttled_m
 
@@ -227,9 +223,7 @@ def _segment_block(eval_method,
                    ):
     block_index, block_coords = block_info
     start_time = time.time()
-    print(f'{time.ctime(start_time)} ',
-          f'Segment block: {block_index}, {block_coords}',
-          flush=True)
+    logger.info(f'Segment block: {block_index}, {block_coords}')
     block_shape = tuple([sl.stop-sl.start for sl in block_coords])
 
     block_data = _read_block_data(block_info, image_container_path,
@@ -262,10 +256,10 @@ def _segment_block(eval_method,
             new_block_coords[axis] = slice(a, a + blocksize[axis])
 
     end_time = time.time()
-    print(f'{time.ctime(start_time)} ',
-          f'Finished segmenting block {block_index} ',
-          f'in {end_time-start_time}s',
-          flush=True)
+    logger.info((
+        f'Finished segmenting block {block_index} '
+        f'in {end_time-start_time}s'
+    ))
     return block_index, tuple(new_block_coords), max_label, labels
 
 
@@ -290,8 +284,8 @@ def _eval_model(block_index,
     from cellpose import models
 
     logger.info((
-        f'{time.ctime(time.time())}'
-        f'Run model eval for block: {block_index}, size: {block_data.shape}'
+        f'Run model eval for block: {block_index}, '
+        f'size: {block_data.shape}, '
         f'3-D:{do_3D}, diameter:{diameter}'
     ))
 
@@ -317,10 +311,7 @@ def _eval_model(block_index,
                                  stitch_threshold=stitch_threshold,
                                  batch_size=gpu_batch_size,
                                  )
-    print(f'{time.ctime(time.time())}',
-          f'Finished model eval for block: {block_index}',
-          flush=True)
-
+    logger.info(f'Finished model eval for block: {block_index}')
     return labels.astype(np.uint32)
 
 
@@ -347,11 +338,13 @@ def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
     labeled_blocks_info = []
     if output_dir is not None and persist_labeled_blocks:
         # collect labels in a zarr array
-        zarr_labels_container = f'{output_dir}/labeled_blocks.zarr'
-        print(f'Save labels to temporary zarr {zarr_labels_container}',
-              flush=True)
+        labeled_blocks_zarr_container = f'{output_dir}/labeled_blocks.zarr'
+        logger.info((
+            'Save labels to temporary zarr ' 
+            f'{labeled_blocks_zarr_container}'
+        ))
         labels = zarr_utils.create_dataset(
-            zarr_labels_container,
+            labeled_blocks_zarr_container,
             '',
             shape,
             chunksize,

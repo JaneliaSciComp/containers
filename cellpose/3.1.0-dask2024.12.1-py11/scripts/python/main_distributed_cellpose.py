@@ -10,7 +10,8 @@ from cellpose.cli import get_arg_parser
 from dask.distributed import (Client, LocalCluster)
 from flatten_json import flatten
 
-from altcontrib.distributed_segmentation import distributed_segmentation
+from altcontrib.distributed_segmentation import distributed_eval as eval_with_simple_merge
+from contrib.distributed_segmentation import distributed_eval as eval_with_shrink_labels_merge
 
 from utils.configure_logging import (configure_logging)
 from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
@@ -120,7 +121,12 @@ def _define_args():
                                   dest='save_intermediate_labels',
                                   default=False,
                                   help='Save intermediate labels as zarr')
-
+    distributed_args.add_argument('--shrink-labels-to-merge',
+                                  action='store_true',
+                                  dest='with_shrink_labels_merge',
+                                  default=False,
+                                  help='Shrink labels to merge')
+    
     distributed_args.add_argument('--logging-config', dest='logging_config',
                                   type=str,
                                   help='Logging configuration')
@@ -191,7 +197,12 @@ def _run_segmentation(args):
 
         try:
             logger.info(f'Invoke segmentation with blocksize {process_blocksize}')
-            output_labels = distributed_segmentation(
+            if (args.with_shrink_labels_merge):
+                distributed_eval_method = eval_with_shrink_labels_merge
+            else:
+                distributed_eval_method = eval_with_simple_merge
+
+            output_labels = distributed_eval_method(
                 args.input,
                 args.input_subpath,
                 image_shape,

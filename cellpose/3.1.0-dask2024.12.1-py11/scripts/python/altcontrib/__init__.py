@@ -1,3 +1,3 @@
 __all__ = [
-    "distributed_segmentation"
+    "distributed_eval"
 ]
