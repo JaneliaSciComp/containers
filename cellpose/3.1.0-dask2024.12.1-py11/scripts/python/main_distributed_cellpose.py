@@ -150,7 +150,7 @@ def _run_segmentation(args):
 
     if args.dask_scheduler:
         dask_client = Client(address=args.dask_scheduler)
-        dask_client.register_worker_plugin(worker_config, name='WorkerConfig')
+        dask_client.register_plugin(worker_config, name='WorkerConfig')
     else:
         # use a local asynchronous client
         dask_client = Client(LocalCluster())

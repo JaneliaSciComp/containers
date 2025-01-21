@@ -8,7 +8,7 @@ from logging.config import fileConfig
 def configure_logging(config_file, verbose):
     log_level = logging.DEBUG if verbose else logging.INFO
     log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    if config_file:
+    if config_file and os.path.exists(config_file):
         fileConfig(config_file)
     else:
         logging.basicConfig(level=log_level,

@@ -22,7 +22,7 @@ class ConfigureWorkerPlugin(WorkerPlugin):
         self.logger = configure_logging(self.logging_config, self.verbose)        
         _set_cpu_resources(self.worker_cpus)
         if self.models_dir:
-            os.environ['CELLPOSE_LOCAL_MODELS_PATH'] = self.cellpose_models_dir
+            os.environ['CELLPOSE_LOCAL_MODELS_PATH'] = self.models_dir
 
     def teardown(self, worker: Worker):
         pass
