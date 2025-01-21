@@ -202,7 +202,8 @@ def _run_segmentation(args):
             else:
                 distributed_eval_method = eval_with_simple_merge
 
-            output_labels = distributed_eval_method(
+            # ignore bounding boxes
+            output_labels, _ = distributed_eval_method(
                 args.input,
                 args.input_subpath,
                 image_shape,

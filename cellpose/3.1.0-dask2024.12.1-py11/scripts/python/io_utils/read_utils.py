@@ -1,4 +1,4 @@
-import dask.array as da
+import logging
 import nrrd
 import numpy as np
 import os
@@ -9,6 +9,9 @@ from tifffile import TiffFile
 from . import zarr_utils
 
 
+logger = logging.getLogger(__name__)
+
+
 def open(container_path, subpath, block_coords=None):
     real_container_path = os.path.realpath(container_path)
     path_comps = os.path.splitext(container_path)
@@ -16,21 +19,21 @@ def open(container_path, subpath, block_coords=None):
     container_ext = path_comps[1]
 
     if container_ext == '.nrrd':
-        print(f'Open nrrd {container_path} ({real_container_path})', flush=True)
+        logger.info(f'Open nrrd {container_path} ({real_container_path})')
         return read_nrrd(container_path, block_coords=block_coords)
     elif container_ext == '.tif' or container_ext == '.tiff':
-        print(f'Open tiff {container_path} ({real_container_path})', flush=True)
+        logger.info(f'Open tiff {container_path} ({real_container_path})')
         im = read_tiff(container_path, block_coords=block_coords)
         return im, {}
     elif container_ext == '.npy':
         im = np.load(container_path)
         return im, {}
     elif container_ext == '.n5' or container_ext == '.zarr':
-        print(f'Open n5 {container_path} ({real_container_path}):{subpath}', flush=True)
+        logger.info(f'Open n5 {container_path} ({real_container_path}):{subpath}')
         return zarr_utils.open(container_path, subpath,
                                block_coords=block_coords)
     else:
-        print(f'Cannot handle {container_path} ({real_container_path}): {subpath}', flush=True)
+        logger.warning(f'Cannot handle {container_path} ({real_container_path}): {subpath}')
         return None, {}
 
 

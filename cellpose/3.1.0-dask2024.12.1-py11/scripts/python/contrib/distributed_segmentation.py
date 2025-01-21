@@ -13,34 +13,40 @@ import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('distributed_cellpose')
 
 
-def distributed_eval(image_container_path,
-                     image_subpath,
-                     image_shape,
-                     blocksize,
-                     output_dir,
-                     dask_client,
-                     mask=None,
-                     preprocessing_steps=[],
-                     model_type='cyto',
-                     use_torch=False,
-                     use_gpu=False,
-                     gpu_device=None,
-                     diameter=30,
-                     eval_channels=None,
-                     z_axis=0,
-                     do_3D=True,
-                     min_size=15,
-                     resample=True,
-                     anisotropy=None,
-                     flow_threshold=0.4,
-                     cellprob_threshold=0,
-                     stitch_threshold=0,
-                     gpu_batch_size=8,
-                     test_mode=False,
-                     ):
+def distributed_eval(
+        image_container_path,
+        image_subpath,
+        image_shape,
+        model_type,
+        diameter,
+        blocksize,
+        output_dir,
+        dask_client,
+        blocksoverlap=(),
+        mask=None,
+        preprocessing_steps=[],
+        use_torch=False,
+        use_gpu=False,
+        gpu_device=None,
+        eval_channels=None,
+        do_3D=True,
+        z_axis=0,
+        anisotropy=None,
+        min_size=15,
+        resample=True,
+        flow_threshold=0.4,
+        cellprob_threshold=0,
+        stitch_threshold=0,
+        max_tasks=-1,
+        gpu_batch_size=8,
+        iou_depth=1,
+        iou_threshold=0,
+        persist_labeled_blocks=True,
+        test_mode=False,
+):
     """
     Evaluate a cellpose model on overlapping blocks of a big image.
     Distributed over workstation or cluster resources with Dask.
@@ -107,10 +113,16 @@ def distributed_eval(image_container_path,
         ID is the first tuple in the list, the largest segment ID is the last
         tuple in the list.
     """
-    overlap = diameter * 2
+    if diameter <= 0:
+        # always specify the diameter
+        diameter = 30
+    image_ndim = len(image_shape)
+    blocksoverlap = (blocksoverlap if (blocksoverlap is not None and
+                                       len(blocksoverlap) == image_ndim)
+                     else (diameter * 2,) * image_ndim)
 
     block_indices, block_crops = get_block_crops(
-        image_shape, blocksize, overlap, mask,
+        image_shape, blocksize, blocksoverlap, mask,
     )
 
     segmentation_zarr_container = f'{output_dir}/segmentation.zarr'
@@ -130,20 +142,21 @@ def distributed_eval(image_container_path,
         image_container_path=image_container_path,
         image_subpath=image_subpath,
         image_shape=image_shape,
-        preprocessing_steps=preprocessing_steps,
         blocksize=blocksize,
+        blocksoverlap=blocksoverlap,
         labels_output_zarr=labels_zarr,
-        overlap=overlap,
+        preprocessing_steps=preprocessing_steps,
         model_type=model_type,
         use_torch=use_torch,
         use_gpu=use_gpu,
         gpu_device=gpu_device,
+        diameter=diameter,
         eval_channels=eval_channels,
-        z_axis=z_axis,
         do_3D=do_3D,
+        z_axis=z_axis,
+        anisotropy=anisotropy,
         min_size=min_size,
         resample=resample,
-        anisotropy=anisotropy,
         flow_threshold=flow_threshold,
         cellprob_threshold=cellprob_threshold,
         stitch_threshold=stitch_threshold,
@@ -169,7 +182,7 @@ def distributed_eval(image_container_path,
     )
     da.to_zarr(relabeled, f'{output_dir}/segmentation.zarr/remapped_block_labels', overwrite=True)
     merged_boxes = merge_all_boxes(boxes, new_labeling[box_ids])
-    return zarr.open(write_path, mode='r'), merged_boxes
+    return relabeled, merged_boxes
 
 
 def process_block(
@@ -178,9 +191,8 @@ def process_block(
     image_container_path,
     image_subpath,
     image_shape,
-    eval_kwargs,
     blocksize,
-    overlap,
+    blocksoverlap,
     labels_output_zarr,
     preprocessing_steps=[],
     model_type='cyto',
@@ -189,11 +201,11 @@ def process_block(
     gpu_device=None,
     diameter=30,
     eval_channels=None,
-    z_axis=0,
     do_3D=True,
+    z_axis=0,
+    anisotropy=None,
     min_size=15,
     resample=True,
-    anisotropy=None,
     flow_threshold=0.4,
     cellprob_threshold=0,
     stitch_threshold=0,
@@ -252,18 +264,10 @@ def process_block(
             return median_filter(image, radius)
         preprocessing_steps = [(F, {'sigma':2.0}), (G, {'radius':4})]
 
-    model_kwargs : dict
-        Arguments passed to cellpose.models.Cellpose
-        This is how you select and parameterize a model.
-
-    eval_kwargs : dict
-        Arguments passed to the eval function of the Cellpose model
-        This is how you parameterize model evaluation.
-
     blocksize : iterable (list, tuple, np.ndarray)
         The number of voxels (the shape) of blocks without overlaps
 
-    overlap : int
+    blocksoverlap : iterable (list, tuple, np.ndarray)
         The number of voxels added to the blocksize to provide context
         at the edges
 
@@ -307,8 +311,10 @@ def process_block(
     """
     logger.info(f'RUNNING BLOCK: {block_index},\tREGION: {crop}')
     segmentation = read_preprocess_and_segment(
-        image_container_path, image_subpath, crop, preprocessing_steps,
-        eval_kwargs,
+        image_container_path, 
+        image_subpath, 
+        crop, 
+        preprocessing_steps,
         model_type=model_type,
         use_torch=use_torch,
         use_gpu=use_gpu,
@@ -325,7 +331,7 @@ def process_block(
         stitch_threshold=stitch_threshold,
         gpu_batch_size=gpu_batch_size,
     )
-    segmentation, crop = remove_overlaps(segmentation, crop, overlap, blocksize)
+    segmentation, crop = remove_overlaps(segmentation, crop, blocksoverlap, blocksize)
     boxes = bounding_boxes_in_global_coordinates(segmentation, crop)
     nblocks = get_nblocks(image_shape, blocksize)
     segmentation, remap = global_segment_ids(segmentation, block_index, nblocks)
@@ -400,7 +406,7 @@ def read_preprocess_and_segment(
     return labels
 
 
-def get_block_crops(shape, blocksize, overlap, mask):
+def get_block_crops(shape, blocksize, overlaps, mask):
     """
     Given a voxel grid shape, blocksize, and overlap size, construct
        tuples of slices for every block; optionally only include blocks
@@ -408,6 +414,8 @@ def get_block_crops(shape, blocksize, overlap, mask):
        the block indices and the slice tuples.
     """
     blocksize = np.array(blocksize)
+    blockoverlaps = np.array(overlaps, dtype=int)
+
     if mask is not None:
         ratio = np.array(mask.shape) / shape
         mask_blocksize = np.round(ratio * blocksize).astype(int)
@@ -415,8 +423,8 @@ def get_block_crops(shape, blocksize, overlap, mask):
     indices, crops = [], []
     nblocks = get_nblocks(shape, blocksize)
     for index in np.ndindex(*nblocks):
-        start = blocksize * index - overlap
-        stop = start + blocksize + 2 * overlap
+        start = blocksize * index - blockoverlaps
+        stop = start + blocksize + 2 * blockoverlaps
         start = np.maximum(0, start)
         stop = np.minimum(shape, stop)
         crop = tuple(slice(x, y) for x, y in zip(start, stop))
@@ -440,7 +448,7 @@ def get_nblocks(shape, blocksize):
     return np.ceil(np.array(shape) / blocksize).astype(int)
 
 
-def remove_overlaps(array, crop, overlap, blocksize):
+def remove_overlaps(array, crop, overlaps, blocksize):
     """
     Overlaps are only there to provide context for boundary voxels
     and can be removed after segmentation is complete
@@ -450,10 +458,10 @@ def remove_overlaps(array, crop, overlap, blocksize):
     for axis in range(array.ndim):
         if crop[axis].start != 0:
             slc = [slice(None),]*array.ndim
-            slc[axis] = slice(overlap, None)
+            slc[axis] = slice(overlaps[axis], None)
             array = array[tuple(slc)]
             a, b = crop[axis].start, crop[axis].stop
-            crop_trimmed[axis] = slice(a + overlap, b)
+            crop_trimmed[axis] = slice(a + overlaps[axis], b)
         if array.shape[axis] > blocksize[axis]:
             slc = [slice(None),]*array.ndim
             slc[axis] = slice(None, blocksize[axis])
@@ -470,9 +478,12 @@ def bounding_boxes_in_global_coordinates(segmentation, crop):
     """
     boxes = scipy.ndimage.find_objects(segmentation)
     boxes = [b for b in boxes if b is not None]
-    def translate(a, b): return slice(a.start+b.start, a.start+b.stop)
+
+    def _translate(a, b):
+        return slice(a.start+b.start, a.start+b.stop)
+
     for iii, box in enumerate(boxes):
-        boxes[iii] = tuple(translate(a, b) for a, b in zip(crop, box))
+        boxes[iii] = tuple(_translate(a, b) for a, b in zip(crop, box))
     return boxes
 
 

@@ -29,6 +29,9 @@ ENV CELLPOSE_LOCAL_MODELS_PATH=
 
 WORKDIR /opt/scripts/cellpose
 
+RUN mkdir -p /etc/cellpose/config
+
+COPY configs/* /etc/cellpose/config/
 COPY scripts/python /opt/scripts/cellpose
 
 RUN pip install .

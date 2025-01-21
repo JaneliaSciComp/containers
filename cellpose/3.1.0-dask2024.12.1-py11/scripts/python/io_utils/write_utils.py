@@ -1,11 +1,15 @@
 import dask.array as da
 import functools
+import logging
 import nrrd
 import numpy as np
 import os
 import tifffile
 
 from . import zarr_utils
+
+
+logger = logging.getLogger(__name__)
 
 
 def save(data, container_path, subpath,
@@ -27,8 +31,7 @@ def save(data, container_path, subpath,
     container_ext = path_comps[1]
     persist_block = None
     if container_ext == '.nrrd':
-        print(f'Persist data as nrrd {container_path} ({real_container_path})',
-              flush=True)
+        logger.info(f'Persist data as nrrd {container_path} ({real_container_path})')
         output_dir = os.path.dirname(container_path)
         output_name = os.path.basename(path_comps[0])
         persist_block = functools.partial(_save_block_to_nrrd,
@@ -36,8 +39,7 @@ def save(data, container_path, subpath,
                                           output_name=output_name,
                                           ext=container_ext)
     elif container_ext == '.tif' or container_ext == '.tiff':
-        print(f'Persist data as tiff {container_path} ({real_container_path})',
-              flush=True)
+        logger.info(f'Persist data as tiff {container_path} ({real_container_path})')
         output_dir = os.path.dirname(container_path)
         output_name = os.path.basename(path_comps[0])
         persist_block = functools.partial(_save_block_to_tiff,
@@ -46,10 +48,11 @@ def save(data, container_path, subpath,
                                           resolution=resolution,
                                           ext=container_ext)
     elif container_ext == '.n5' or (container_ext == '' and subpath):
-        print(f'Persist {data.shape} ({data.dtype}) data ',
-              f'as N5 to {container_path} ',
-              f'({real_container_path}):{subpath}',
-              flush=True)
+        logger.info((
+            f'Persist {data.shape} ({data.dtype}) data '
+            f'as N5 to {container_path} '
+            f'({real_container_path}):{subpath}'
+        ))
         attrs = {}
         if resolution is not None:
             attrs['pixelResolution'] = resolution
@@ -68,9 +71,10 @@ def save(data, container_path, subpath,
         persist_block = functools.partial(_save_block_to_zarr,
                                           zarr_output=zarr_data)
     elif container_ext == '.zarr':
-        print(f'Persist data as zarr {container_path} ',
-              f'({real_container_path}):{subpath}',
-              flush=True)
+        logger.info((
+            f'Persist data as zarr {container_path} '
+            f'({real_container_path}):{subpath}'
+        ))
         attrs = {}
         if resolution is not None:
             attrs['pixelResolution'] = resolution
@@ -89,9 +93,10 @@ def save(data, container_path, subpath,
         persist_block = functools.partial(_save_block_to_zarr,
                                           zarr_output=zarr_data)
     else:
-        print(f'Cannot persist data using {container_path} ',
-              f'({real_container_path}): {subpath}',
-              flush=True)
+        logger.info((
+            f'Cannot persist data using {container_path} '
+            f'({real_container_path}): {subpath}'
+        ))
 
     if persist_block is not None:
         return save_blocks(data, persist_block, blocksize)
@@ -106,15 +111,17 @@ def save_blocks(dimage, persist_block, blocksize):
         chunksize = blocksize
 
     if chunksize == dimage.chunksize:
-        print(f'No rechunking of {dimage.shape} image',
-              f'- using chunksize={chunksize}',
-              flush=True)
+        logger.info((
+            f'No rechunking of {dimage.shape} image '
+            f'- using chunksize={chunksize}'
+        ))
         rechunked_dimage = dimage
     else:
         # rechunk the image
-        print(f'Rechunk {dimage.shape} image from {dimage.chunksize} ',
-              f'to {chunksize} before persisting it',
-              flush=True)
+        logger.info((
+            f'Rechunk {dimage.shape} image from {dimage.chunksize} '
+            f'to {chunksize} before persisting it'
+        ))
         rechunked_dimage = da.rechunk(dimage, chunks=chunksize)
     return da.map_blocks(persist_block,
                          rechunked_dimage,
@@ -139,11 +146,12 @@ def _save_block_to_nrrd(block, output_dir=None, output_name=None,
             filename = output_name + ext
 
         full_filename = os.path.join(output_dir, filename)
-        print(f'Write block {block.shape}',
-              f'block_info: {block_info}',
-              f'output_coords: {output_coords}',
-              f'block_coords: {block_coords}',
-              flush=True)
+        logger.info((
+            f'Write block {block.shape}'
+            f'block_info: {block_info}'
+            f'output_coords: {output_coords}'
+            f'block_coords: {block_coords}'
+        ))
         nrrd.write(full_filename, block[block_coords].transpose(2, 1, 0),
                    compression_level=2)
         return np.ones(res_shape, dtype=np.uint32)
@@ -171,12 +179,13 @@ def _save_block_to_tiff(block, output_dir=None, output_name=None,
             filename = output_name + ext
 
         full_filename = os.path.join(output_dir, filename)
-        print(f'Write block {block.shape}',
-              f'block_info: {block_info}',
-              f'output_coords: {output_coords}',
-              f'block_coords: {block_coords}',
-              f'to {full_filename}',
-              flush=True)
+        logger.info((
+            f'Write block {block.shape}'
+            f'block_info: {block_info}'
+            f'output_coords: {output_coords}'
+            f'block_coords: {block_coords}'
+            f'to {full_filename}'
+        ))
         tiff_metadata = {
             'axes': 'ZYX',
         }
@@ -193,14 +202,15 @@ def _save_block_to_tiff(block, output_dir=None, output_name=None,
 def _save_block_to_zarr(block, zarr_output=None, block_info=None):
     res_shape = tuple([1 for r in range(0, block.ndim)])
     if block_info is not None and zarr_output is not None:
-        print(f'Save block {block_info}', flush=True)
+        logger.info(f'Save block {block_info}')
         output_coords = _block_coords_from_block_info(block_info, 0)
         block_coords = tuple([slice(s.start-s.start, s.stop-s.start)
                               for s in output_coords])
-        print(f'Write block {block.shape}',
-              f'output_coords: {output_coords}',
-              f'block_coords: {block_coords}',
-              flush=True)
+        logger.info((
+            f'Write block {block.shape}'
+            f'output_coords: {output_coords}'
+            f'block_coords: {block_coords}'
+        ))
         zarr_output[output_coords] = block[block_coords]
         return np.ones(res_shape, dtype=np.uint32)
     else:

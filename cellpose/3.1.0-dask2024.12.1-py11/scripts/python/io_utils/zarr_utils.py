@@ -1,5 +1,9 @@
+import logging
 import numpy as np
 import zarr
+
+
+logger = logging.getLogger(__name__)
 
 
 def create_dataset(data_path, data_subpath, shape, chunks, dtype,
@@ -8,7 +12,7 @@ def create_dataset(data_path, data_subpath, shape, chunks, dtype,
     try:
         data_store = _get_data_store(data_path, data_store_name)
         if data_subpath:
-            print('Create dataset', data_path, data_subpath)
+            logger.info(f'Create dataset {data_path}:{data_subpath}')
             n5_root = zarr.open_group(store=data_store, mode='a')
             dataset = n5_root.require_dataset(
                 data_subpath,
@@ -20,14 +24,14 @@ def create_dataset(data_path, data_subpath, shape, chunks, dtype,
             dataset.attrs.update(**kwargs)
             return dataset
         else:
-            print('Create root array', data_path)
+            logger.info(f'Create root array {data_path}')
             return zarr.open(store=data_store,
                              shape=shape,
                              chunks=chunks,
                              dtype=dtype,
                               mode='a')
     except Exception as e:
-        print('Error creating a dataset at', data_path, data_subpath, e)
+        logger.error(f'Error creating a dataset at {data_path}:{data_subpath}, {e}')
         raise e
 
 
@@ -42,7 +46,7 @@ def open(data_path, data_subpath, data_store_name=None,
         ba = a[block_coords] if block_coords is not None else a
         return ba, a.attrs.asdict()
     except Exception as e:
-        print(f'Error opening {data_path} : {data_subpath}', e, flush=True)
+        logger.error(f'Error opening {data_path}:{data_subpath} {e}')
         raise e
 
 
