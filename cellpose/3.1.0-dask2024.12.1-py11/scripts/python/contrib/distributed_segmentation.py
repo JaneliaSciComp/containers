@@ -500,6 +500,7 @@ def global_segment_ids(segmentation, block_index, nblocks):
     This creates limits: 42950 maximum number of blocks and
     99999 maximum number of segments per block
     """
+    logger.debug(f'Get global segment ids for block {block_index} - start at: {nblocks}')
     unique, unique_inverse = np.unique(segmentation, return_inverse=True)
     p = str(np.ravel_multi_index(block_index, nblocks))
     remap = [np.uint32(p+str(x).zfill(5)) for x in unique]
