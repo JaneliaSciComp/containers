@@ -10,8 +10,8 @@ from cellpose.cli import get_arg_parser
 from dask.distributed import (Client, LocalCluster)
 from flatten_json import flatten
 
-from altcontrib.distributed_segmentation import distributed_eval as eval_with_simple_merge
-from contrib.distributed_segmentation import distributed_eval as eval_with_shrink_labels_merge
+from altcontrib.distributed_segmentation import (distributed_eval as eval_with_simple_merge)
+from contrib.distributed_segmentation import (distributed_eval as eval_with_shrink_labels_merge)
 
 from utils.configure_logging import (configure_logging)
 from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
@@ -79,6 +79,12 @@ def _define_args():
                              dest='eval_channels',
                              type=_inttuple,
                              help='Cellpose channels: 0,0 - gray images')
+
+    args_parser.add_argument('--test-mode', '--test_mode',
+                             dest='test_mode',
+                             action='store_true',
+                             default=False,
+                             help='Test-mode')
 
     distributed_args = args_parser.add_argument_group("Distributed Arguments")
     distributed_args.add_argument('--dask-scheduler', '--dask_scheduler',
@@ -227,6 +233,7 @@ def _run_segmentation(args):
                 iou_threshold=args.iou_threshold,
                 iou_depth=args.iou_depth,
                 persist_labeled_blocks=args.save_intermediate_labels,
+                test_mode=args.test_mode,
             )
 
             persisted_labels = write_utils.save(

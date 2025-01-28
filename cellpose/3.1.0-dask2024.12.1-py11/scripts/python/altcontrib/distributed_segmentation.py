@@ -148,6 +148,11 @@ def distributed_eval(
         f'in {time.time()-start_time}s'
     ))
 
+    if test_mode:
+        # return the labeled blocks before merging the labels
+        logger.info('Return labeled blocks')
+        return labeled_blocks, []
+
     if np.prod(nblocks) > 1:
         working_labeled_blocks = labeled_blocks
         logger.info(f'Submit link labels for {nblocks} label blocks')
@@ -162,16 +167,16 @@ def distributed_eval(
             dask_client,
         )
         # save labels to a temporary file for the relabeling process
-        labels_filename = f'{output_dir}/labels.npy'
-        saved_labels_filename = dask.delayed(_save_labels)(
+        new_labeling_filename = f'{output_dir}/new_labeling.npy'
+        persisted_new_labeling = dask.delayed(_save_labels)(
             new_labeling,
-            labels_filename,
+            new_labeling_filename,
         )
-        logger.info(f'Relabel {nblocks} blocks')
+        logger.info(f'Relabel {nblocks} blocks from {persisted_new_labeling}')
         relabeled = da.map_blocks(
             _relabel_block,
             labeled_blocks,
-            labels_filename=saved_labels_filename,
+            labels_filename=persisted_new_labeling,
             dtype=labeled_blocks.dtype,
             chunks=labeled_blocks.chunks)
     else:

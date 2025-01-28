@@ -165,15 +165,21 @@ def distributed_eval(
     )
 
     results = dask_client.gather(futures)
-
     faces, boxes_, box_ids_ = list(zip(*results))
+    segmentation_da = da.from_zarr(labels_zarr)
+
+    if test_mode:
+        # return the labeled blocks before merging the labels
+        logger.info('Return labeled blocks')
+        return segmentation_da, []
+
     boxes = [box for sublist in boxes_ for box in sublist]
     box_ids = np.concatenate(box_ids_)
     new_labeling = determine_merge_relabeling(block_indices, faces, box_ids)
     new_labeling_path = f'{output_dir}/new_labeling.npy'
     np.save(new_labeling_path, new_labeling)
 
-    segmentation_da = da.from_zarr(labels_zarr)
+    logger.info(f'Relabel blocks from {new_labeling_path}')
     relabeled = da.map_blocks(
         lambda block: np.load(new_labeling_path)[block],
         segmentation_da,
@@ -338,10 +344,11 @@ def process_block(
     if remap[0] == 0:
         remap = remap[1:]
 
+    labels_output_zarr[tuple(crop)] = segmentation
+
     if test_mode:
         return segmentation, boxes, remap
 
-    labels_output_zarr[tuple(crop)] = segmentation
     faces = block_faces(segmentation)
     return faces, boxes, remap
 
