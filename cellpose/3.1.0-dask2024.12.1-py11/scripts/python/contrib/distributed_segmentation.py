@@ -538,6 +538,7 @@ def determine_merge_relabeling(block_indices, faces, used_labels):
     label_groups = block_face_adjacency_graph(faces, label_range)
     new_labeling = scipy.sparse.csgraph.connected_components(
         label_groups, directed=False)[1]
+    logger.debug(f'Connected labels: {new_labeling}')
     # XXX: new_labeling is returned as int32. Loses half range. Potentially a problem.
     unused_labels = np.ones(label_range + 1, dtype=bool)
     unused_labels[used_labels] = 0
@@ -584,9 +585,11 @@ def block_face_adjacency_graph(faces, nlabels):
         all_mappings.append(mapped)
     i, j = np.concatenate(all_mappings, axis=1)
     v = np.ones_like(i)
-    return scipy.sparse.coo_matrix((v, (i, j)),
-                                   shape=(nlabels+1,
-                                   nlabels+1)).tocsr()
+    csr_mat = scipy.sparse.coo_matrix((v, (i, j)),
+                                      shape=(nlabels+1,
+                                      nlabels+1)).tocsr()
+    logger.debug(f'Labels mapping as csr matrix {csr_mat}')
+    return csr_mat
 
 
 def shrink_labels(plane, threshold):

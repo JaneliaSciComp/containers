@@ -516,7 +516,7 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
     union = sum0 + sum1 - intersection
     # Ignore errors with divide by zero, which the np.where sets to zero.
     with np.errstate(divide="ignore", invalid="ignore"):
-        iou = np.where(intersection > 0, intersection / union, 0)
+        iou = np.where(union > 0, intersection / union, 0)
     logger.debug((
         f'Face intersection for {face_slice}'
         f'sum0: {sum0}, sum1:{sum1.transpose()}'
@@ -555,6 +555,7 @@ def _get_labels_connected_comps(label_groups, nlabels):
         csr_label_groups,
         directed=False,
     )[1]
+    logger.debug(f'Connected labels: {connected_comps}')
     return connected_comps
 
 
