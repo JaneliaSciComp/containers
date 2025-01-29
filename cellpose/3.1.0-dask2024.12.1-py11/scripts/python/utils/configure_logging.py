@@ -6,11 +6,12 @@ from logging.config import fileConfig
 
 
 def configure_logging(config_file, verbose):
-    log_level = logging.DEBUG if verbose else logging.INFO
     log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     if config_file and os.path.exists(config_file):
+        print(f'Configure logging using verbose={verbose} from {config_file}')
         fileConfig(config_file)
     else:
+        log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level,
                             format=log_format,
                             datefmt='%Y-%m-%d %H:%M:%S',
@@ -18,7 +19,6 @@ def configure_logging(config_file, verbose):
                                 logging.StreamHandler(stream=sys.stdout)
                             ])
     logger = logging.getLogger()
-    logger.setLevel(log_level)
     return logger
 
 

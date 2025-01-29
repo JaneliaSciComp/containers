@@ -380,7 +380,7 @@ def read_preprocess_and_segment(
     """Read block from zarr array, run all preprocessing steps, run cellpose"""
     logger.info((
         f'Reading {crop} block from '
-        f'{image_container_path}:{image_subpath}'
+        f'{image_container_path}:{image_subpath} '
     ))
     image_block, _ = read_utils.open(image_container_path, image_subpath,
                                      block_coords=crop)

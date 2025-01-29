@@ -77,7 +77,7 @@ def distributed_eval(
     nblocks = np.ceil(np.array(image_shape) / blockchunks).astype(int)
     logger.info((
         f'Blocksize:{blockchunks}, '
-        f'overlap:{blockoverlaps} => {nblocks} blocks'
+        f'overlap:{blockoverlaps} => {nblocks} blocks '
     ))
 
     blocks_info = []
@@ -144,8 +144,8 @@ def distributed_eval(
     )
 
     logger.info((
-        f'Finished segmentation of {len(blocks_info)} blocks'
-        f'in {time.time()-start_time}s'
+        f'Finished segmentation of {len(blocks_info)} blocks '
+        f'in {time.time()-start_time}s '
     ))
 
     if test_mode:
@@ -268,7 +268,7 @@ def _segment_block(eval_method,
     end_time = time.time()
     logger.info((
         f'Finished segmenting block {block_index} '
-        f'in {end_time-start_time}s'
+        f'in {end_time-start_time}s '
     ))
     return block_index, tuple(new_block_coords), max_label, labels
 
@@ -296,7 +296,7 @@ def _eval_model(block_index,
     logger.info((
         f'Run model eval for block: {block_index}, '
         f'size: {block_data.shape}, '
-        f'3-D:{do_3D}, diameter:{diameter}'
+        f'3-D:{do_3D}, diameter:{diameter} '
     ))
 
     np.random.seed(block_index)
@@ -349,7 +349,7 @@ def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
         labeled_blocks_zarr_container = f'{output_dir}/labeled_blocks.zarr'
         logger.info((
             'Save labels to temporary zarr ' 
-            f'{labeled_blocks_zarr_container}'
+            f'{labeled_blocks_zarr_container} '
         ))
         labels = zarr_utils.create_dataset(
             labeled_blocks_zarr_container,
@@ -375,7 +375,7 @@ def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
             tb = f.traceback()
             logger.error((
                 f'Process future {f} error: {exc} '
-                f'{traceback.extract_tb(tb)}'
+                f'{traceback.extract_tb(tb)} '
             ))
 
         (block_index, block_coords, max_block_label, block_labels) = r
@@ -414,7 +414,10 @@ def _link_labels(labels, blocks_index_and_coords, max_label, face_depth,
                                                 face_depth,
                                                 iou_threshold,
                                                 client)
-    logger.debug('Find connected components for label groups')
+    logger.debug((
+        f'Find connected components for label groups: '
+        f'max label: {max_label}, label groups: {label_groups} '
+    ))
     return dask.delayed(_get_labels_connected_comps)(label_groups, max_label+1)
 
 
@@ -442,8 +445,8 @@ def _get_adjacent_label_mappings(labels, blocks_index_and_coords,
     mappings = np.concatenate(all_mappings, axis=1)
     logger.debug((
         f'Concatenated {len(all_mappings)} mappings -> '
-        f'{mappings.shape}.'
-        f'Label mappings: {mappings}'
+        f'{mappings.shape}. '
+        f'Label mappings: {mappings} '
     ))
     return mappings
 
@@ -471,7 +474,7 @@ def _get_blocks_faces_info(blocks_index_and_coords, face_depth, image):
         face_slices_and_axes.extend(block_faces)
     logger.debug((
         f'There are {len(face_slices_and_axes)} '
-        f'face slices to map: {face_slices_and_axes}'
+        f'face slices to map: {face_slices_and_axes} '
     ))
     return face_slices_and_axes
 
@@ -481,7 +484,7 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
     face_shape = tuple([s.stop-s.start for s in face_slice])
     logger.debug((
         f'Group labels for face {face_slice} ({face_shape}) '
-        f'along {axis} axis'
+        f'along {axis} axis '
     ))
     face = image[face_slice].compute()
     logger.debug(f'Label grouping accross axis {axis} for {face_slice} image')
@@ -489,8 +492,9 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
         face, return_index=True,
     )
     logger.debug((
-        f'Unique labels for face {face_slice} ({face_shape})'
-        f'along {axis} axis', unique, unique_indexes
+        f'Unique labels for face {face_slice} ({face_shape}) '
+        f'along {axis} axis '
+        f'{unique}, {unique_indexes} '
     ))
     face0, face1 = np.split(face, 2, axis)
     face0_unique, face0_unique_indexes, face0_unique_counts = np.unique(
@@ -500,12 +504,12 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
         face1.reshape(-1), return_index=True, return_counts=True,
     )
     logger.debug((
-        f'Unique labels for face0 of {face_slice} with shape: {face0.shape}'
-        f'{face0_unique}, {face0_unique_indexes}, {face0_unique_counts}'
+        f'Unique labels for face0 of {face_slice} with shape: {face0.shape} '
+        f'{face0_unique}, {face0_unique_indexes}, {face0_unique_counts} '
     ))
     logger.debug((
-        f'Unique labels for face1 of {face_slice} with shape: {face1.shape}'
-        f'{face1_unique}, {face1_unique_indexes}, {face1_unique_counts}'
+        f'Unique labels for face1 of {face_slice} with shape: {face1.shape} '
+        f'{face1_unique}, {face1_unique_indexes}, {face1_unique_counts} '
     ))
 
     intersection = sk_metrics.confusion_matrix(
@@ -518,9 +522,9 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
     with np.errstate(divide="ignore", invalid="ignore"):
         iou = np.where(union > 0, intersection / union, 0)
     logger.debug((
-        f'Face intersection for {face_slice}'
-        f'sum0: {sum0}, sum1:{sum1.transpose()}'
-        f'iou: {iou}'
+        f'Face intersection for {face_slice} '
+        f'sum0: {sum0}, sum1:{sum1.transpose()} '
+        f'iou: {iou} '
     ))
 
     labels0, labels1 = np.nonzero(iou > iou_threshold)
@@ -541,8 +545,8 @@ def _across_block_label_grouping(face_info, iou_threshold=0, image=None):
     # if there's not more than one label return it as is
     label_mapping = grouped[:, valid]
     logger.debug((
-        f'Valid labels for {face_slice}:'
-        f'label mapping: {label_mapping}'
+        f'Valid labels for {face_slice}: '
+        f'label mapping: {label_mapping} '
     ))
     return label_mapping
 
