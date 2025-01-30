@@ -40,10 +40,10 @@ def open(data_path, data_subpath, data_store_name=None,
          block_coords=None):
     try:
         data_store = _get_data_store(data_path, data_store_name)
-        logger.debug(f'Open zarr container: {data_store} ({data_store_name})')
+        logger.debug(f'Open zarr container: {data_store}:{data_subpath} ({data_store_name})')
         data_container = zarr.open(store=data_store, mode=mode)
         a = (data_container[data_subpath] 
-             if data_subpath and data_path != '.'
+             if data_subpath and data_subpath != '.'
              else data_container)
         ba = a[block_coords] if block_coords is not None else a
         return ba, a.attrs.asdict()

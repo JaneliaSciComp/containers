@@ -10,8 +10,8 @@ from cellpose.cli import get_arg_parser
 from dask.distributed import (Client, LocalCluster)
 from flatten_json import flatten
 
-from altcontrib.distributed_segmentation import (distributed_eval as eval_with_simple_merge)
-from contrib.distributed_segmentation import (distributed_eval as eval_with_shrink_labels_merge)
+from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_shrink_labels_merge)
+from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_simple_merge)
 
 from utils.configure_logging import (configure_logging)
 from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)

@@ -19,7 +19,7 @@ from dask.distributed import as_completed, Semaphore
 from sklearn import metrics as sk_metrics
 
 
-logger = logging.getLogger('distributed_cellpose')
+logger = logging.getLogger(__name__)
 
 
 def distributed_eval(

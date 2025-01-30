@@ -13,7 +13,7 @@ import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
 
 
-logger = logging.getLogger('distributed_cellpose')
+logger = logging.getLogger(__name__)
 
 
 def distributed_eval(

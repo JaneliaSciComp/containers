@@ -29,10 +29,14 @@ def open(container_path, subpath, block_coords=None):
         im = np.load(container_path)
         return im, {}
     elif container_ext == '.n5' or container_ext == '.zarr':
-        logger.info(f'Open {container_path} ({real_container_path}):{subpath}')
+        container_store = container_ext[1:]
+        logger.info((
+            f'Open {container_path} ({real_container_path}):{subpath} '
+            f'using {container_store} container store '
+        ))
         return zarr_utils.open(container_path, subpath,
                                block_coords=block_coords,
-                               data_store_name=container_ext[1:])
+                               data_store_name=container_store)
     else:
         logger.warning(f'Cannot handle {container_path} ({real_container_path}): {subpath}')
         return None, {}
