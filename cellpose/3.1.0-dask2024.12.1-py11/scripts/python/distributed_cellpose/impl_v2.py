@@ -129,7 +129,8 @@ def distributed_eval(
         blockoverlaps=blockoverlaps,
     )
 
-    logger.info(f'Start segmenting: {len(blocks_info)} blocks')
+    logger.info(f'Start segmenting: {len(blocks_info)} {blocksize} blocks with overlap {blocksoverlap}')
+
     segment_block_res = dask_client.map(
         segment_block,
         blocks_info,

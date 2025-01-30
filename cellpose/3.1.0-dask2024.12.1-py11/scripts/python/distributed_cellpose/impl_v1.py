@@ -135,6 +135,7 @@ def distributed_eval(
         data_store_name='zarr',
     )
 
+    logger.info(f'Start segmenting: {len(block_indices)} {blocksize} blocks with overlap {blocksoverlap}')
     futures = dask_client.map(
         process_block,
         block_indices,

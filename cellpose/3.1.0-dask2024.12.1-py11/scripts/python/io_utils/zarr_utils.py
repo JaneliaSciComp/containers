@@ -11,10 +11,13 @@ def create_dataset(data_path, data_subpath, shape, chunks, dtype,
                    **kwargs):
     try:
         data_store = _get_data_store(data_path, data_store_name)
-        if data_subpath:
-            logger.info(f'Create dataset {data_path}:{data_subpath}')
-            n5_root = zarr.open_group(store=data_store, mode='a')
-            dataset = n5_root.require_dataset(
+        if data_subpath and data_subpath != '.':
+            logger.info((
+                f'Create dataset {data_path}:{data_subpath} '
+                f'data store {data_store}'
+            ))
+            root_group = zarr.open_group(store=data_store, mode='a')
+            dataset = root_group.require_dataset(
                 data_subpath,
                 shape=shape,
                 chunks=chunks,
@@ -24,12 +27,15 @@ def create_dataset(data_path, data_subpath, shape, chunks, dtype,
             dataset.attrs.update(**kwargs)
             return dataset
         else:
-            logger.info(f'Create root array {data_path}')
+            logger.info((
+                f'Create root array {data_path} '
+                f'data store {data_store}'
+            ))
             return zarr.open(store=data_store,
                              shape=shape,
                              chunks=chunks,
                              dtype=dtype,
-                              mode='a')
+                             mode='a')
     except Exception as e:
         logger.error(f'Error creating a dataset at {data_path}:{data_subpath}, {e}')
         raise e
