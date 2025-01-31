@@ -47,7 +47,7 @@ def save(data, container_path, subpath,
                                           output_name=output_name,
                                           resolution=resolution,
                                           ext=container_ext)
-    elif container_ext == '.n5' or (container_ext == '' and subpath):
+    elif (container_ext == '.n5' or container_ext == '') and subpath and subpath != '.':
         logger.info((
             f'Persist {data.shape} ({data.dtype}) data '
             f'as N5 to {container_path} '
@@ -70,7 +70,7 @@ def save(data, container_path, subpath,
         )
         persist_block = functools.partial(_save_block_to_zarr,
                                           zarr_output=zarr_data)
-    elif container_ext == '.zarr':
+    elif container_ext == '.zarr' or not subpath or subpath == '.':
         logger.info((
             f'Persist data as zarr {container_path} '
             f'({real_container_path}):{subpath} '
