@@ -31,6 +31,7 @@ def get_preprocessing_steps(steps, preprocessing_config_file):
         if step_method is not None:
             step_params = preprocessing_config.get(step)
             if step_params is not None:
+                logger.info(f'Add preprocessing step: {step}:{step_params}')
                 preprocessing_steps = preprocessing_steps.append((step_method, step_params))
 
     return preprocessing_steps
