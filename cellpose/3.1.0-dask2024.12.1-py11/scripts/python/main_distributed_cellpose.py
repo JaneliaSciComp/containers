@@ -1,4 +1,3 @@
-import numpy as np
 import os
 import sys
 import traceback
@@ -13,6 +12,7 @@ from flatten_json import flatten
 
 from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_shrink_labels_merge)
 from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_simple_merge)
+from distributed_cellpose.preprocessing import get_preprocessing_steps
 
 from utils.configure_logging import (configure_logging)
 from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
@@ -22,6 +22,13 @@ def _inttuple(arg):
         return tuple([int(d) for d in arg.split(',')])
     else:
         return ()
+
+
+def stringlist(arg):
+    if arg is not None and arg.strip():
+        return list(filter(lambda x: x, [s.strip() for s in arg.split(',')]))
+    else:
+        return []
 
 
 def _define_args():
@@ -139,6 +146,17 @@ def _define_args():
                                   default=False,
                                   help='Shrink labels to merge')
     
+    distributed_args.add_argument('--preprocessing-steps', '--preprocessing_steps',
+                                  dest='preprocessing_steps',
+                                  type=stringlist, 
+                                  default=[],
+                                  help='Preprocessing steps')
+
+    distributed_args.add_argument('--preprocessing-config', '--preprocessing_config',
+                                  dest='preprocessing_config',
+                                  type=str,
+                                  help='Preprocessing steps parameters')
+    
     distributed_args.add_argument('--logging-config', dest='logging_config',
                                   type=str,
                                   help='Logging configuration')
@@ -218,15 +236,19 @@ def _run_segmentation(args):
             if args.anisotropy:
                 anisotropy = args.anisotropy
             else:
-                if voxel_spacing:
+                if voxel_spacing is not None:
                     if args.expansion_factor > 0:
                         expansion = args.expansion_factor
                     else:
                         expansion = 1.
-                    spacing = np.array(voxel_spacing) / expansion
+                    spacing = voxel_spacing / expansion
                     anisotropy = spacing[0] / spacing[1]
                 else:
                     anisotropy = None
+
+            preprocessing_steps = get_preprocessing_steps(args.preprocessing_steps, 
+                                                          args.preprocessing_config)
+
             # ignore bounding boxes
             output_labels, _ = distributed_eval_method(
                 args.input,
@@ -253,6 +275,7 @@ def _run_segmentation(args):
                 iou_depth=args.iou_depth,
                 persist_labeled_blocks=args.save_intermediate_labels,
                 test_mode=args.test_mode,
+                preprocessing_steps=preprocessing_steps
             )
 
             persisted_labels = write_utils.save(

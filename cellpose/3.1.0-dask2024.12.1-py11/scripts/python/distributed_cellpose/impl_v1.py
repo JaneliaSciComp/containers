@@ -386,6 +386,7 @@ def read_preprocess_and_segment(
     image_block, _ = read_utils.open(image_container_path, image_subpath,
                                      block_coords=crop)
     for pp_step in preprocessing_steps:
+        logger.debug(f'Apply preprocessing step: {pp_step}')
         pp_step[1]['crop'] = crop
         image_block = pp_step[0](image_block, **pp_step[1])
 

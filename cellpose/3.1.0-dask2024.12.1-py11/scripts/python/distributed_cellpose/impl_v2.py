@@ -127,6 +127,7 @@ def distributed_eval(
         image_subpath=image_subpath,
         blocksize=blockchunks,
         blockoverlaps=blockoverlaps,
+        preprocessing_steps=preprocessing_steps,
     )
 
     logger.info(f'Start segmenting: {len(blocks_info)} {blocksize} blocks with overlap {blocksoverlap}')
@@ -241,6 +242,7 @@ def _segment_block(eval_method,
                                   image_subpath=image_subpath)
     # preprocess
     for pp_step in preprocessing_steps:
+        logger.debug(f'Apply preprocessing step: {pp_step}')
         block_data = pp_step[0](block_data, **pp_step[1])
 
     labels = eval_method(block_index, block_data)
