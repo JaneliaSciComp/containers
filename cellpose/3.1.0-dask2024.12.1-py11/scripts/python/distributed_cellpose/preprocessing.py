@@ -16,8 +16,8 @@ unsharp:
 """
 
 
-def get_preprocessing_steps(steps, preprocessing_config_file):
-    if not steps:
+def get_preprocessing_steps(steps, preprocessing_config_file, voxel_spacing=None):
+    if steps is None or len(steps) == 0:
         return []
 
     _preprocessing_methods = {
@@ -25,21 +25,26 @@ def get_preprocessing_steps(steps, preprocessing_config_file):
     }
 
     preprocessing_steps = []
+    logger.info(f'Get preprocessing steps: {steps}')
     preprocessing_config = _get_preprocessing_config(preprocessing_config_file)
+
     for step in steps:
+        logger.info(f'Check preprocessing step: {step}')
         step_method = _preprocessing_methods.get(step)
         if step_method is not None:
+            logger.debug(f'Found method {step_method} for step {step}')
             step_params = preprocessing_config.get(step)
             if step_params is not None:
+                if voxel_spacing is not None:
+                    step_params['voxel_spacing'] = voxel_spacing
                 logger.info(f'Add preprocessing step: {step}:{step_params}')
-                preprocessing_steps = preprocessing_steps.append((step_method, step_params))
+                preprocessing_steps.append((step_method, step_params))
 
     return preprocessing_steps
 
 
 def _get_preprocessing_config(preprocessing_config_file):
     default_config = yaml.safe_load(default_preprocessing_params_str)
-    logger.info(f'Default preprocessing config: {default_config}')
     if preprocessing_config_file:
         with open(preprocessing_config_file) as f:
             external_config = yaml.safe_load(f)
@@ -50,16 +55,27 @@ def _get_preprocessing_config(preprocessing_config_file):
             config = pu.deep_update(default_config, external_config)
             logger.info(f'Final config {config}')
     else:
+        logger.info(f'Use default preprocessing config: {default_config}')
         config = default_config
 
+    return config
 
-def _unsharp(image, sigma_one, weight, iterations, sigma_two):
+
+def _unsharp(image, sigma_one=1., weight=1., iterations=5, sigma_two=0.1, voxel_spacing=None):
     image = image.astype(np.float32)
+    if voxel_spacing is not None:
+        s1 = sigma_one / voxel_spacing
+        s2 = sigma_two / voxel_spacing
+    else:
+        s1 = sigma_one
+        s2 = sigma_two
     for i in range(iterations):
-        high_frequency_image = image - gaussian_filter(image, sigma_one)
+        high_frequency_image = image - gaussian_filter(image, s1)
         image = (1. - weight) * image + weight * high_frequency_image
 
-    image = gaussian_filter(image, sigma_two)
+    image = gaussian_filter(image, s2)
+
     image[image < 0] = 0
     image[image > 65500] = 65500
+
     return np.round(image).astype(np.uint16)

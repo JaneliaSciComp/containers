@@ -17,6 +17,13 @@ from distributed_cellpose.preprocessing import get_preprocessing_steps
 from utils.configure_logging import (configure_logging)
 from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
 
+
+def _floattuple(arg):
+    if arg is not None and arg.strip():
+        return tuple([float(d) for d in arg.split(',')])
+    else:
+        return ()
+
 def _inttuple(arg):
     if arg is not None and arg.strip():
         return tuple([int(d) for d in arg.split(',')])
@@ -24,7 +31,7 @@ def _inttuple(arg):
         return ()
 
 
-def stringlist(arg):
+def _stringlist(arg):
     if arg is not None and arg.strip():
         return list(filter(lambda x: x, [s.strip() for s in arg.split(',')]))
     else:
@@ -41,6 +48,11 @@ def _define_args():
                              dest='input_subpath',
                              type=str,
                              help = "input subpath")
+
+    args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
+                             dest='voxel_spacing',
+                             type=_floattuple,
+                             help = "voxel spacing")
 
     args_parser.add_argument('--mask',
                              dest='mask',
@@ -148,7 +160,7 @@ def _define_args():
     
     distributed_args.add_argument('--preprocessing-steps', '--preprocessing_steps',
                                   dest='preprocessing_steps',
-                                  type=stringlist, 
+                                  type=_stringlist,
                                   default=[],
                                   help='Preprocessing steps')
 
@@ -191,7 +203,18 @@ def _run_segmentation(args):
     image_shape = image_data.shape
     image_dtype = image_data.dtype
     image_data = None
-    voxel_spacing = read_utils.get_voxel_spacing(image_attrs, (1,) * image_ndim)
+
+    if args.voxel_spacing:
+        voxel_spacing = read_utils.get_voxel_spacing({}, args.voxel_spacing)
+    else:
+        voxel_spacing = read_utils.get_voxel_spacing(image_attrs, (1,) * image_ndim)
+
+    if voxel_spacing is not None:
+        if args.expansion_factor > 0:
+            expansion = args.expansion_factor
+        else:
+            expansion = 1.
+        voxel_spacing /= expansion
 
     logger.info(f'Image data shape/dim/dtype: {image_shape}, {image_ndim}, {image_dtype}')
     
@@ -237,18 +260,14 @@ def _run_segmentation(args):
                 anisotropy = args.anisotropy
             else:
                 if voxel_spacing is not None:
-                    if args.expansion_factor > 0:
-                        expansion = args.expansion_factor
-                    else:
-                        expansion = 1.
-                    spacing = voxel_spacing / expansion
-                    anisotropy = spacing[0] / spacing[1]
+                    anisotropy = voxel_spacing[0] / voxel_spacing[1]
                 else:
                     anisotropy = None
 
             preprocessing_steps = get_preprocessing_steps(args.preprocessing_steps, 
-                                                          args.preprocessing_config)
-
+                                                          args.preprocessing_config,
+                                                          voxel_spacing=voxel_spacing)
+            logger.info(f'Preprocessing steps: {preprocessing_steps}')
             # ignore bounding boxes
             output_labels, _ = distributed_eval_method(
                 args.input,
