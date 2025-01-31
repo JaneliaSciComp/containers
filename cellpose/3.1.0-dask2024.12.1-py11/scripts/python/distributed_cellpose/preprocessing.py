@@ -38,6 +38,7 @@ def get_preprocessing_steps(steps, preprocessing_config_file):
 
 def _get_preprocessing_config(preprocessing_config_file):
     default_config = yaml.safe_load(default_preprocessing_params_str)
+    logger.info(f'Default preprocessing config: {default_config}')
     if preprocessing_config_file:
         with open(preprocessing_config_file) as f:
             external_config = yaml.safe_load(f)
