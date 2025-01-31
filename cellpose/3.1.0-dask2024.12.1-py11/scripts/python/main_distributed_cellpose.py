@@ -1,3 +1,4 @@
+import numpy as np
 import os
 import sys
 import traceback
@@ -79,6 +80,11 @@ def _define_args():
                              dest='eval_channels',
                              type=_inttuple,
                              help='Cellpose channels: 0,0 - gray images')
+    args_parser.add_argument('--expansion-factor', '--expansion_factor',
+                             dest='expansion_factor',
+                             type=float,
+                             default=0.,
+                             help='Sample expansion factor')
 
     args_parser.add_argument('--test-mode', '--test_mode',
                              dest='test_mode',
@@ -167,6 +173,7 @@ def _run_segmentation(args):
     image_shape = image_data.shape
     image_dtype = image_data.dtype
     image_data = None
+    voxel_spacing = read_utils.get_voxel_spacing(image_attrs, (1,) * image_ndim)
 
     logger.info(f'Image data shape/dim/dtype: {image_shape}, {image_ndim}, {image_dtype}')
     
@@ -208,6 +215,18 @@ def _run_segmentation(args):
             else:
                 distributed_eval_method = eval_with_simple_merge
 
+            if args.anisotropy:
+                anisotropy = args.anisotropy
+            else:
+                if voxel_spacing:
+                    if args.expansion_factor > 0:
+                        expansion = args.expansion_factor
+                    else:
+                        expansion = 1.
+                    spacing = np.array(voxel_spacing) / expansion
+                    anisotropy = spacing[0] / spacing[1]
+                else:
+                    anisotropy = None
             # ignore bounding boxes
             output_labels, _ = distributed_eval_method(
                 args.input,
@@ -219,7 +238,7 @@ def _run_segmentation(args):
                 args.working_dir,
                 dask_client,
                 blocksoverlap=blocks_overlaps,
-                anisotropy=args.anisotropy,
+                anisotropy=anisotropy,
                 min_size=args.min_size,
                 resample=(not args.no_resample),
                 flow_threshold=args.flow_threshold,

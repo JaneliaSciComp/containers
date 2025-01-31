@@ -63,12 +63,3 @@ def _get_data_store(data_path, data_store_name):
         return zarr.N5Store(data_path)
     else:
         return data_path
-
-
-def get_voxel_spacing(attrs):
-    if (attrs.get('downsamplingFactors')):
-        voxel_spacing = (np.array(attrs['pixelResolution']) * 
-                         np.array(attrs['downsamplingFactors']))
-    else:
-        voxel_spacing = np.array(attrs['pixelResolution']['dimensions'])
-    return voxel_spacing[::-1] # put in zyx order

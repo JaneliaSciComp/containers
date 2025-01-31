@@ -56,3 +56,17 @@ def read_tiff(input_path, block_coords=None):
 def read_nrrd(input_path, block_coords=None):
     im, dict = nrrd.read(input_path)
     return im[block_coords] if block_coords is not None else im, dict
+
+
+def get_voxel_spacing(attrs, default_value=None):
+    if (attrs.get('downsamplingFactors')):
+        voxel_spacing = (np.array(attrs['pixelResolution']) * 
+                         np.array(attrs['downsamplingFactors']))
+    elif (attrs.get('pixelResolution')):
+        voxel_spacing = np.array(attrs['pixelResolution']['dimensions'])
+    else:
+        voxel_spacing = default_value
+    if voxel_spacing:
+        return voxel_spacing[::-1] # put in zyx order
+    else:
+        return None
