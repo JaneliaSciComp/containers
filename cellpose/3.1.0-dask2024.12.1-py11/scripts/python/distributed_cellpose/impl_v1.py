@@ -387,7 +387,6 @@ def read_preprocess_and_segment(
                                      block_coords=crop)
     for pp_step in preprocessing_steps:
         logger.debug(f'Apply preprocessing step: {pp_step}')
-        pp_step[1]['crop'] = crop
         image_block = pp_step[0](image_block, **pp_step[1])
 
     segmentation_device, gpu = cellpose.models.assign_device(use_torch=use_torch,
