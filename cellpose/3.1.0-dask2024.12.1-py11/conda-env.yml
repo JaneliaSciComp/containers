@@ -5,7 +5,7 @@ dependencies:
   - pip
   - flatten_json
   - imagecodecs
-  - numpy>=1.26.0
+  - numpy>=1.26.0,<2
   - pyyaml
   - scikit-image>=0.21.0
   - scikit-learn>=1.4.1
