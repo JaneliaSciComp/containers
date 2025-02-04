@@ -250,12 +250,14 @@ def _segment_block(eval_method,
     max_label = np.max(labels)
 
     # remove overlaps
+    logger.debug(f'Remove overlaps for block: {block_index}:{block_coords}')
     new_block_coords = list(block_coords)
     for axis in range(block_data.ndim):
         # left side
         if block_coords[axis].start != 0:
             slc = [slice(None),]*block_data.ndim
             slc[axis] = slice(blockoverlaps[axis], None)
+            logger.debug(f'Remove left overlap on axis {axis}: {tuple(slc)}')
             labels = labels[tuple(slc)]
             a, b = block_coords[axis].start, block_coords[axis].stop
             new_block_coords[axis] = slice(a + blockoverlaps[axis], b)
@@ -264,6 +266,7 @@ def _segment_block(eval_method,
         if block_shape[axis] > blocksize[axis]:
             slc = [slice(None),]*block_data.ndim
             slc[axis] = slice(None, blocksize[axis])
+            logger.debug(f'Remove right overlap on axis {axis}: {tuple(slc)}')
             labels = labels[tuple(slc)]
             a = new_block_coords[axis].start
             new_block_coords[axis] = slice(a, a + blocksize[axis])

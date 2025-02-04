@@ -467,13 +467,14 @@ def remove_overlaps(array, crop, overlaps, blocksize):
         if crop[axis].start != 0:
             slc = [slice(None),]*array.ndim
             slc[axis] = slice(overlaps[axis], None)
-            logger.debug(f'Remove overlap: {tuple(slc)}')
+            logger.debug(f'Remove left overlap on axis {axis}: {tuple(slc)}')
             array = array[tuple(slc)]
             a, b = crop[axis].start, crop[axis].stop
             crop_trimmed[axis] = slice(a + overlaps[axis], b)
         if array.shape[axis] > blocksize[axis]:
             slc = [slice(None),]*array.ndim
             slc[axis] = slice(None, blocksize[axis])
+            logger.debug(f'Remove right overlap on axis {axis}: {tuple(slc)}')
             array = array[tuple(slc)]
             a = crop_trimmed[axis].start
             crop_trimmed[axis] = slice(a, a + blocksize[axis])
