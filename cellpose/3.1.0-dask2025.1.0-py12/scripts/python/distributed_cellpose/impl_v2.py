@@ -325,6 +325,7 @@ def _eval_model(block_index,
 
     np.random.seed(block_index)
 
+    start_time = time.time()
     segmentation_device, gpu = models.assign_device(use_torch=use_torch,
                                                     gpu=use_gpu,
                                                     device=gpu_device)
@@ -332,21 +333,25 @@ def _eval_model(block_index,
     model = models.CellposeModel(gpu=gpu,
                                  model_type=model_type,
                                  device=segmentation_device)
-    labels, _, _, _ = model.eval(block_data,
-                                 channels=eval_channels,
-                                 diameter=diameter,
-                                 z_axis=z_axis,
-                                 channel_axis=channel_axis,
-                                 do_3D=do_3D,
-                                 min_size=min_size,
-                                 resample=resample,
-                                 anisotropy=anisotropy,
-                                 flow_threshold=flow_threshold,
-                                 cellprob_threshold=cellprob_threshold,
-                                 stitch_threshold=stitch_threshold,
-                                 batch_size=gpu_batch_size,
-                                 )
-    logger.info(f'Finished model eval for block: {block_index}')
+    labels = model.eval(block_data,
+                        channels=eval_channels,
+                        diameter=diameter,
+                        z_axis=z_axis,
+                        channel_axis=channel_axis,
+                        do_3D=do_3D,
+                        min_size=min_size,
+                        resample=resample,
+                        anisotropy=anisotropy,
+                        flow_threshold=flow_threshold,
+                        cellprob_threshold=cellprob_threshold,
+                        stitch_threshold=stitch_threshold,
+                        batch_size=gpu_batch_size,
+                        )[0]
+    end_time = time.time()
+    logger.info((
+        f'Finished model eval for block: {block_index} '
+        f'in {end_time-start_time}s '
+    ))
     return labels.astype(np.uint32)
 
 

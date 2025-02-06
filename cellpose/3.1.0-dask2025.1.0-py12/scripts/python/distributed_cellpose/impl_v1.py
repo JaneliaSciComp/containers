@@ -8,6 +8,7 @@ import dask_image.ndmeasure as di_ndmeasure
 import logging
 import numpy as np
 import scipy
+import time
 
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
@@ -398,6 +399,9 @@ def read_preprocess_and_segment(
     ))
     image_block, _ = read_utils.open(image_container_path, image_subpath,
                                      block_coords=crop)
+
+    start_time = time.time()
+
     for pp_step in preprocessing_steps:
         logger.debug(f'Apply preprocessing step: {pp_step}')
         image_block = pp_step[0](image_block, **pp_step[1])
@@ -424,7 +428,13 @@ def read_preprocess_and_segment(
                         stitch_threshold=stitch_threshold,
                         batch_size=gpu_batch_size,
                         )[0].astype(np.uint32)
-    logger.info(f'Finished model eval for block: {crop}')
+
+    end_time = time.time()
+
+    logger.info((
+        f'Finished model eval for block: {crop} '
+        f'in {end_time-start_time}s '
+    )
     return labels
 
 
