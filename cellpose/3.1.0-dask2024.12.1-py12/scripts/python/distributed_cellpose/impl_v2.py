@@ -40,6 +40,7 @@ def distributed_eval(
         eval_channels=None,
         do_3D=True,
         z_axis=0,
+        channel_axis=None,
         anisotropy=None,
         min_size=15,
         resample=True,
@@ -62,9 +63,16 @@ def distributed_eval(
         # always specify the diameter
         diameter = 30
     image_ndim = len(image_shape)
-    blocksoverlap = (blocksoverlap if (blocksoverlap is not None and
-                                       len(blocksoverlap) == image_ndim)
-                     else (diameter * 2,) * image_ndim)
+    # check blocksoverlap
+    if blocksoverlap is None:
+        blocksoverlap = (diameter*2,) * image_ndim
+    elif isinstance(blocksoverlap, (int, float)):
+        blocksoverlap = (int(blocksoverlap),) * image_ndim
+    elif isinstance(blocksoverlap, tuple):
+        if len(blocksoverlap) < image_ndim:
+            blocksoverlap = blocksoverlap + (diameter*2,) * (image_ndim-len(blocksoverlap))
+    else:
+        raise ValueError(f'Invalid blocksoverlap {blocksoverlap} of type {type(blocksoverlap)} - expected tuple')
 
     blockchunks = np.array(blocksize, dtype=int)
     blockoverlaps = np.array(blocksoverlap, dtype=int)
@@ -104,6 +112,7 @@ def distributed_eval(
         eval_channels=eval_channels,
         do_3D=do_3D,
         z_axis=z_axis,
+        channel_axis=channel_axis,
         diameter=diameter,
         anisotropy=anisotropy,
         min_size=min_size,
@@ -250,15 +259,19 @@ def _segment_block(eval_method,
     max_label = np.max(labels)
 
     # remove overlaps
-    logger.debug(f'Remove overlaps for block: {block_index}:{block_coords}')
+    logger.debug(f'Remove overlaps for block: {block_index}:{block_coords}:{labels.shape}')
     new_block_coords = list(block_coords)
     for axis in range(block_data.ndim):
         # left side
         if block_coords[axis].start != 0:
             slc = [slice(None),]*block_data.ndim
             slc[axis] = slice(blockoverlaps[axis], None)
-            logger.debug(f'Remove left overlap on axis {axis}: {tuple(slc)}')
-            labels = labels[tuple(slc)]
+            loverlap_index = tuple(slc)
+            logger.debug((
+                f'Remove left overlap on axis {axis}: {loverlap_index} ({type(loverlap_index)}) '
+                f'from labeled block of shape: {labels.shape} '
+            ))
+            labels = labels[loverlap_index]
             a, b = block_coords[axis].start, block_coords[axis].stop
             new_block_coords[axis] = slice(a + blockoverlaps[axis], b)
 
@@ -266,8 +279,12 @@ def _segment_block(eval_method,
         if block_shape[axis] > blocksize[axis]:
             slc = [slice(None),]*block_data.ndim
             slc[axis] = slice(None, blocksize[axis])
-            logger.debug(f'Remove right overlap on axis {axis}: {tuple(slc)}')
-            labels = labels[tuple(slc)]
+            roverlap_index = tuple(slc)
+            logger.debug((
+                f'Remove right overlap on axis {axis}: {roverlap_index} ({type(roverlap_index)}) '
+                f'from labeled block of shape: {labels.shape} '
+            ))
+            labels = labels[roverlap_index]
             a = new_block_coords[axis].start
             new_block_coords[axis] = slice(a, a + blocksize[axis])
 
@@ -281,10 +298,11 @@ def _segment_block(eval_method,
 
 def _eval_model(block_index,
                 block_data,
-                model_type='cyto',
+                model_type='cyto3',
                 eval_channels=None,
                 do_3D=True,
                 z_axis=0,
+                channel_axis=None,
                 diameter=None,
                 anisotropy=None,
                 min_size=15,
@@ -311,13 +329,14 @@ def _eval_model(block_index,
                                                     gpu=use_gpu,
                                                     device=gpu_device)
 
-    model = models.Cellpose(gpu=gpu,
-                            model_type=model_type,
-                            device=segmentation_device)
+    model = models.CellposeModel(gpu=gpu,
+                                 model_type=model_type,
+                                 device=segmentation_device)
     labels, _, _, _ = model.eval(block_data,
                                  channels=eval_channels,
                                  diameter=diameter,
                                  z_axis=z_axis,
+                                 channel_axis=channel_axis,
                                  do_3D=do_3D,
                                  min_size=min_size,
                                  resample=resample,

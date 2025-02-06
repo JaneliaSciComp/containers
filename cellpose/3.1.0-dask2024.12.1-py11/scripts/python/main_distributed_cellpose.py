@@ -133,10 +133,11 @@ def _define_args():
     distributed_args.add_argument('--models-dir', dest='models_dir',
                                   type=str,
                                   help='cache cellpose models directory')
-    distributed_args.add_argument('--model', dest='segmentation_model',
+    distributed_args.add_argument('--model',
+                                  dest='segmentation_model',
                                   type=str,
                                   default='cyto',
-                                  help='segmentation model')
+                                  help='A builtin segmentation model or a model added to the cellpose models directory')
     distributed_args.add_argument('--iou-threshold', '--iou_threshold',
                                   dest='iou_threshold',
                                   type=float,
