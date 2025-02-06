@@ -186,6 +186,7 @@ def _run_segmentation(args):
     else:
         models_dir = None
 
+    logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
     worker_config = ConfigureWorkerPlugin(models_dir,
                                           args.logging_config,
                                           args.verbose,
@@ -269,6 +270,15 @@ def _run_segmentation(args):
                                                           args.preprocessing_config,
                                                           voxel_spacing=voxel_spacing)
             logger.info(f'Preprocessing steps: {preprocessing_steps}')
+
+            if args.z_axis is not None and args.z_axis >= 0:
+                z_axis = args.z_axis
+            else:
+                z_axis = 0 # default to first axis
+            if args.channel_axis is not None and args.channel_axis >= 0:
+                channel_axis = args.channel_axis
+            else:
+                channel_axis = None
             # ignore bounding boxes
             output_labels, _ = distributed_eval_method(
                 args.input,
@@ -286,6 +296,8 @@ def _run_segmentation(args):
                 flow_threshold=args.flow_threshold,
                 cellprob_threshold=args.cellprob_threshold,
                 stitch_threshold=args.stitch_threshold,
+                z_axis=z_axis,
+                channel_axis=channel_axis,
                 eval_channels=eval_channels,
                 use_torch=args.use_gpu,
                 use_gpu=args.use_gpu,
