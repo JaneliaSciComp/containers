@@ -106,8 +106,6 @@ def _define_args():
                              default=0.,
                              help='Sample expansion factor')
 
-
-
     args_parser.add_argument('--eval-model-with-size', '--eval_model_with_size',
                              dest='eval_model_with_size',
                              action='store_true',
