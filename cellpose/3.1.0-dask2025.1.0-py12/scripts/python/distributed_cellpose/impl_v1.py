@@ -46,6 +46,7 @@ def distributed_eval(
         gpu_batch_size=8,
         iou_depth=1,
         iou_threshold=0,
+        label_dist_th=1.0,
         persist_labeled_blocks=True,
         test_mode=False,
 ):
@@ -187,7 +188,8 @@ def distributed_eval(
 
     boxes = [box for sublist in boxes_ for box in sublist]
     box_ids = np.concatenate(box_ids_)
-    new_labeling = determine_merge_relabeling(block_indices, faces, box_ids)
+    new_labeling = determine_merge_relabeling(block_indices, faces, box_ids,
+                                              label_dist_th=label_dist_th)
     new_labeling_path = f'{output_dir}/new_labeling.npy'
     np.save(new_labeling_path, new_labeling)
 
@@ -434,7 +436,7 @@ def read_preprocess_and_segment(
     logger.info((
         f'Finished model eval for block: {crop} '
         f'in {end_time-start_time}s '
-    )
+    ))
     return labels
 
 
@@ -571,12 +573,14 @@ def block_faces(segmentation):
     return faces
 
 
-def determine_merge_relabeling(block_indices, faces, used_labels):
+def determine_merge_relabeling(block_indices, faces, used_labels,
+                               label_dist_th=1.0):
     """Determine boundary segment mergers, remap all label IDs to merge
        and put all label IDs in range [1..N] for N global segments found"""
     faces = adjacent_faces(block_indices, faces)
     label_range = np.max(used_labels)
-    label_groups = block_face_adjacency_graph(faces, label_range)
+    label_groups = block_face_adjacency_graph(faces, label_range,
+                                              label_dist_th=label_dist_th)
     new_labeling = scipy.sparse.csgraph.connected_components(
         label_groups, directed=False)[1]
     logger.debug(f'Connected labels: {new_labeling}')
@@ -607,7 +611,7 @@ def adjacent_faces(block_indices, faces):
     return face_pairs
 
 
-def block_face_adjacency_graph(faces, nlabels):
+def block_face_adjacency_graph(faces, nlabels, label_dist_th=1.0):
     """
     Shrink labels in face plane, then find which labels touch across the face boundary
     """
@@ -616,8 +620,8 @@ def block_face_adjacency_graph(faces, nlabels):
     for face in faces:
         sl0 = tuple(slice(0, 1) if d == 2 else slice(None) for d in face.shape)
         sl1 = tuple(slice(1, 2) if d == 2 else slice(None) for d in face.shape)
-        a = shrink_labels(face[sl0], 1.0)
-        b = shrink_labels(face[sl1], 1.0)
+        a = shrink_labels(face[sl0], label_dist_th)
+        b = shrink_labels(face[sl1], label_dist_th)
         face = np.concatenate((a, b), axis=np.argmin(a.shape))
         mapped = di_ndmeasure._utils._label._across_block_label_grouping(
             face,

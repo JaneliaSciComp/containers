@@ -6,12 +6,13 @@ import io_utils.read_utils as read_utils
 import io_utils.write_utils as write_utils
 
 from cellpose import version_str as cellpose_version
+from cellpose.models import get_user_models
 from cellpose.cli import get_arg_parser
 from dask.distributed import (Client, LocalCluster)
 from flatten_json import flatten
 
-from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_shrink_labels_merge)
-from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_simple_merge)
+from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_dt_merge)
+from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_iou_merge)
 from distributed_cellpose.preprocessing import get_preprocessing_steps
 
 from utils.configure_logging import (configure_logging)
@@ -148,14 +149,19 @@ def _define_args():
                                   type=int,
                                   default=1,
                                   help='Intersection over union depth')
+    distributed_args.add_argument('--label-distance-threshold', '--label-dist-th',
+                                  dest='label_dist_th',
+                                  type=float,
+                                  default=1.0,
+                                  help='Label distance transform threshold used for merging labels'),
     distributed_args.add_argument('--save-intermediate-labels',
                                   action='store_true',
                                   dest='save_intermediate_labels',
                                   default=False,
                                   help='Save intermediate labels as zarr')
-    distributed_args.add_argument('--shrink-labels-to-merge',
+    distributed_args.add_argument('--merge-with-labels-dt',
                                   action='store_true',
-                                  dest='with_shrink_labels_merge',
+                                  dest='merge_labels_with_dt',
                                   default=False,
                                   help='Shrink labels to merge')
     
@@ -180,11 +186,16 @@ def _define_args():
 def _run_segmentation(args):
     load_dask_config(args.dask_config)
     if args.models_dir is not None:
-        models_dir = args.models_dir
+        models_dir = os.path.realpath(args.models_dir)
+        os.environ['CELLPOSE_LOCAL_MODELS_PATH'] = models_dir
     elif os.environ['CELLPOSE_LOCAL_MODELS_PATH']:
         models_dir = os.environ['CELLPOSE_LOCAL_MODELS_PATH']
     else:
         models_dir = None
+
+    if models_dir:
+        logger.info(f'Download cellpose models to {models_dir}')
+        get_user_models()
 
     logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
     worker_config = ConfigureWorkerPlugin(models_dir,
@@ -253,10 +264,10 @@ def _run_segmentation(args):
 
         try:
             logger.info(f'Invoke segmentation with blocksize {process_blocksize}')
-            if (args.with_shrink_labels_merge):
-                distributed_eval_method = eval_with_shrink_labels_merge
+            if (args.merge_labels_with_dt):
+                distributed_eval_method = eval_with_labels_dt_merge
             else:
-                distributed_eval_method = eval_with_simple_merge
+                distributed_eval_method = eval_with_iou_merge
 
             if args.anisotropy:
                 anisotropy = args.anisotropy
@@ -303,8 +314,9 @@ def _run_segmentation(args):
                 use_gpu=args.use_gpu,
                 gpu_device=args.gpu_device,
                 max_tasks=args.max_cellpose_tasks,
-                iou_threshold=args.iou_threshold,
                 iou_depth=args.iou_depth,
+                iou_threshold=args.iou_threshold,
+                label_dist_th=args.label_dist_th,
                 persist_labeled_blocks=args.save_intermediate_labels,
                 test_mode=args.test_mode,
                 preprocessing_steps=preprocessing_steps

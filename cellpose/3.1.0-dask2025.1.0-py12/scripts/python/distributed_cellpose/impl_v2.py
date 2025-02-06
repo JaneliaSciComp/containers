@@ -51,6 +51,7 @@ def distributed_eval(
         gpu_batch_size=8,
         iou_depth=1,
         iou_threshold=0,
+        label_dist_th=1.0,
         persist_labeled_blocks=False,
         test_mode=False,
 ):
