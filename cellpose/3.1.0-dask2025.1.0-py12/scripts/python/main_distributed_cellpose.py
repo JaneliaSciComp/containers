@@ -106,6 +106,14 @@ def _define_args():
                              default=0.,
                              help='Sample expansion factor')
 
+
+
+    args_parser.add_argument('--eval-model-with-size', '--eval_model_with_size',
+                             dest='eval_model_with_size',
+                             action='store_true',
+                             default=False,
+                             help='Eval model using both CellposeModel and SizeModel')
+
     args_parser.add_argument('--test-mode', '--test_mode',
                              dest='test_mode',
                              action='store_true',
@@ -318,8 +326,9 @@ def _run_segmentation(args):
                 iou_threshold=args.iou_threshold,
                 label_dist_th=args.label_dist_th,
                 persist_labeled_blocks=args.save_intermediate_labels,
+                preprocessing_steps=preprocessing_steps,
+                eval_model_with_size=args.eval_model_with_size,
                 test_mode=args.test_mode,
-                preprocessing_steps=preprocessing_steps
             )
 
             persisted_labels = write_utils.save(

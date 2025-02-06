@@ -48,6 +48,7 @@ def distributed_eval(
         iou_threshold=0,
         label_dist_th=1.0,
         persist_labeled_blocks=True,
+        eval_model_with_size=True,
         test_mode=False,
 ):
     """
@@ -174,6 +175,7 @@ def distributed_eval(
         cellprob_threshold=cellprob_threshold,
         stitch_threshold=stitch_threshold,
         gpu_batch_size=gpu_batch_size,
+        eval_model_with_size=eval_model_with_size,
         test_mode=test_mode,
     )
 
@@ -231,6 +233,7 @@ def process_block(
     cellprob_threshold=0,
     stitch_threshold=0,
     gpu_batch_size=8,
+    eval_model_with_size=True,
     test_mode=False,
 ):
     """
@@ -352,6 +355,7 @@ def process_block(
         cellprob_threshold=cellprob_threshold,
         stitch_threshold=stitch_threshold,
         gpu_batch_size=gpu_batch_size,
+        eval_model_with_size=eval_model_with_size,
     )
     segmentation, crop = remove_overlaps(segmentation, crop, blocksoverlap, blocksize)
     boxes = bounding_boxes_in_global_coordinates(segmentation, crop)
@@ -393,6 +397,7 @@ def read_preprocess_and_segment(
     cellprob_threshold=0,
     stitch_threshold=0,
     gpu_batch_size=8,
+    eval_model_with_size=True,
 ):
     """Read block from zarr array, run all preprocessing steps, run cellpose"""
     logger.info((
@@ -411,11 +416,14 @@ def read_preprocess_and_segment(
     segmentation_device, gpu = cellpose.models.assign_device(use_torch=use_torch,
                                                              gpu=use_gpu,
                                                              device=gpu_device)
-
-    model = cellpose.models.CellposeModel(gpu=gpu,
-                                          model_type=model_type,
-                                          device=segmentation_device)
-
+    if eval_model_with_size:
+        model = cellpose.models.Cellpose(gpu=gpu,
+                                         model_type=model_type,
+                                         device=segmentation_device)
+    else:
+        model = cellpose.models.CellposeModel(gpu=gpu,
+                                              model_type=model_type,
+                                              device=segmentation_device)
     labels = model.eval(image_block, 
                         channels=eval_channels,
                         diameter=diameter,

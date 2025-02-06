@@ -54,6 +54,7 @@ def distributed_eval(
         label_dist_th=1.0,
         persist_labeled_blocks=False,
         test_mode=False,
+        eval_model_with_size=True,
 ):
     """
     partition a 3-D volume into overlapping blocks and run cellpose segmentation
@@ -125,6 +126,7 @@ def distributed_eval(
         use_gpu=use_gpu,
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
+        eval_model_with_size=eval_model_with_size,
     )
 
     logger.info(f'Cache cellpose models {model_type}')
@@ -315,6 +317,7 @@ def _eval_model(block_index,
                 use_gpu=False,
                 gpu_device=None,
                 gpu_batch_size=8,
+                eval_model_with_size=True,
                 ):
     from cellpose import models
 
@@ -330,10 +333,14 @@ def _eval_model(block_index,
     segmentation_device, gpu = models.assign_device(use_torch=use_torch,
                                                     gpu=use_gpu,
                                                     device=gpu_device)
-
-    model = models.CellposeModel(gpu=gpu,
-                                 model_type=model_type,
-                                 device=segmentation_device)
+    if eval_model_with_size:
+        model = models.Cellpose(gpu=gpu,
+                                model_type=model_type,
+                                device=segmentation_device)
+    else:
+        model = models.CellposeModel(gpu=gpu,
+                                     model_type=model_type,
+                                     device=segmentation_device)
     labels = model.eval(block_data,
                         channels=eval_channels,
                         diameter=diameter,
