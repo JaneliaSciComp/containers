@@ -8,6 +8,7 @@ import dask_image.ndmeasure as di_ndmeasure
 import logging
 import numpy as np
 import scipy
+import time
 
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
@@ -34,6 +35,7 @@ def distributed_eval(
         eval_channels=None,
         do_3D=True,
         z_axis=0,
+        channel_axis=None,
         anisotropy=None,
         min_size=15,
         resample=True,
@@ -44,7 +46,9 @@ def distributed_eval(
         gpu_batch_size=8,
         iou_depth=1,
         iou_threshold=0,
+        label_dist_th=1.0,
         persist_labeled_blocks=True,
+        eval_model_with_size=True,
         test_mode=False,
 ):
     """
@@ -117,12 +121,20 @@ def distributed_eval(
         # always specify the diameter
         diameter = 30
     image_ndim = len(image_shape)
-    blocksoverlap = (blocksoverlap if (blocksoverlap is not None and
-                                       len(blocksoverlap) == image_ndim)
-                     else (diameter * 2,) * image_ndim)
+    # check blocksoverlap
+    if blocksoverlap is None:
+        blocksoverlap = (int(diameter*2),) * image_ndim
+    elif isinstance(blocksoverlap, (int, float)):
+        blocksoverlap = (int(blocksoverlap),) * image_ndim
+    elif isinstance(blocksoverlap, tuple):
+        if len(blocksoverlap) < image_ndim:
+            blocksoverlap = blocksoverlap + (int(diameter*2),) * (image_ndim-len(blocksoverlap))
+    else:
+        raise ValueError(f'Invalid blocksoverlap {blocksoverlap} of type {type(blocksoverlap)} - expected tuple')
 
+    blocksoverlap_arr = np.array(blocksoverlap, dtype=int)
     block_indices, block_crops = get_block_crops(
-        image_shape, blocksize, blocksoverlap, mask,
+        image_shape, blocksize, blocksoverlap_arr, mask,
     )
 
     segmentation_zarr_container = f'{output_dir}/segmentation.zarr'
@@ -144,7 +156,7 @@ def distributed_eval(
         image_subpath=image_subpath,
         image_shape=image_shape,
         blocksize=blocksize,
-        blocksoverlap=blocksoverlap,
+        blocksoverlap=blocksoverlap_arr,
         labels_output_zarr=labels_zarr,
         preprocessing_steps=preprocessing_steps,
         model_type=model_type,
@@ -155,6 +167,7 @@ def distributed_eval(
         eval_channels=eval_channels,
         do_3D=do_3D,
         z_axis=z_axis,
+        channel_axis=channel_axis,
         anisotropy=anisotropy,
         min_size=min_size,
         resample=resample,
@@ -162,6 +175,7 @@ def distributed_eval(
         cellprob_threshold=cellprob_threshold,
         stitch_threshold=stitch_threshold,
         gpu_batch_size=gpu_batch_size,
+        eval_model_with_size=eval_model_with_size,
         test_mode=test_mode,
     )
 
@@ -176,7 +190,8 @@ def distributed_eval(
 
     boxes = [box for sublist in boxes_ for box in sublist]
     box_ids = np.concatenate(box_ids_)
-    new_labeling = determine_merge_relabeling(block_indices, faces, box_ids)
+    new_labeling = determine_merge_relabeling(block_indices, faces, box_ids,
+                                              label_dist_th=label_dist_th)
     new_labeling_path = f'{output_dir}/new_labeling.npy'
     np.save(new_labeling_path, new_labeling)
 
@@ -202,7 +217,7 @@ def process_block(
     blocksoverlap,
     labels_output_zarr,
     preprocessing_steps=[],
-    model_type='cyto',
+    model_type='cyto3',
     use_torch=False,
     use_gpu=False,
     gpu_device=None,
@@ -210,6 +225,7 @@ def process_block(
     eval_channels=None,
     do_3D=True,
     z_axis=0,
+    channel_axis=None,
     anisotropy=None,
     min_size=15,
     resample=True,
@@ -217,6 +233,7 @@ def process_block(
     cellprob_threshold=0,
     stitch_threshold=0,
     gpu_batch_size=8,
+    eval_model_with_size=True,
     test_mode=False,
 ):
     """
@@ -329,6 +346,7 @@ def process_block(
         diameter=diameter,
         eval_channels=eval_channels,
         z_axis=z_axis,
+        channel_axis=channel_axis,
         do_3D=do_3D,
         min_size=min_size,
         resample=resample,
@@ -337,6 +355,7 @@ def process_block(
         cellprob_threshold=cellprob_threshold,
         stitch_threshold=stitch_threshold,
         gpu_batch_size=gpu_batch_size,
+        eval_model_with_size=eval_model_with_size,
     )
     segmentation, crop = remove_overlaps(segmentation, crop, blocksoverlap, blocksize)
     boxes = bounding_boxes_in_global_coordinates(segmentation, crop)
@@ -361,7 +380,7 @@ def read_preprocess_and_segment(
     crop,
     preprocessing_steps,
     # model_kwargs,
-    model_type='cyto',
+    model_type='cyto3',
     use_torch=False,
     use_gpu=False,
     gpu_device=None,
@@ -369,6 +388,7 @@ def read_preprocess_and_segment(
     diameter=30,
     eval_channels=None,
     z_axis=0,
+    channel_axis=None,
     do_3D=True,
     min_size=15,
     resample=True,
@@ -377,6 +397,7 @@ def read_preprocess_and_segment(
     cellprob_threshold=0,
     stitch_threshold=0,
     gpu_batch_size=8,
+    eval_model_with_size=True,
 ):
     """Read block from zarr array, run all preprocessing steps, run cellpose"""
     logger.info((
@@ -385,6 +406,9 @@ def read_preprocess_and_segment(
     ))
     image_block, _ = read_utils.open(image_container_path, image_subpath,
                                      block_coords=crop)
+
+    start_time = time.time()
+
     for pp_step in preprocessing_steps:
         logger.debug(f'Apply preprocessing step: {pp_step}')
         image_block = pp_step[0](image_block, **pp_step[1])
@@ -392,15 +416,19 @@ def read_preprocess_and_segment(
     segmentation_device, gpu = cellpose.models.assign_device(use_torch=use_torch,
                                                              gpu=use_gpu,
                                                              device=gpu_device)
-
-    model = cellpose.models.Cellpose(gpu=gpu,
-                                     model_type=model_type,
-                                     device=segmentation_device)
-
+    if eval_model_with_size:
+        model = cellpose.models.Cellpose(gpu=gpu,
+                                         model_type=model_type,
+                                         device=segmentation_device)
+    else:
+        model = cellpose.models.CellposeModel(gpu=gpu,
+                                              model_type=model_type,
+                                              device=segmentation_device)
     labels = model.eval(image_block, 
                         channels=eval_channels,
                         diameter=diameter,
                         z_axis=z_axis,
+                        channel_axis=channel_axis,
                         do_3D=do_3D,
                         min_size=min_size,
                         resample=resample,
@@ -410,7 +438,13 @@ def read_preprocess_and_segment(
                         stitch_threshold=stitch_threshold,
                         batch_size=gpu_batch_size,
                         )[0].astype(np.uint32)
-    logger.info(f'Finished model eval for block: {crop}')
+
+    end_time = time.time()
+
+    logger.info((
+        f'Finished model eval for block: {crop} '
+        f'in {end_time-start_time}s '
+    ))
     return labels
 
 
@@ -421,7 +455,7 @@ def get_block_crops(shape, blocksize, overlaps, mask):
        that contain foreground in the mask. Returns parallel lists,
        the block indices and the slice tuples.
     """
-    blocksize = np.array(blocksize)
+    blocksize = np.array(blocksize, dtype=int)
     blockoverlaps = np.array(overlaps, dtype=int)
 
     if mask is not None:
@@ -462,18 +496,34 @@ def remove_overlaps(array, crop, overlaps, blocksize):
     and can be removed after segmentation is complete
     reslice array to remove the overlaps
     """
+    logger.debug((
+        f'Remove overlaps: {overlaps} '
+        f'crop: {crop} '
+        f'blocksize is {blocksize} '
+        f'block shape: {array.shape} '
+    ))
     crop_trimmed = list(crop)
     for axis in range(array.ndim):
         if crop[axis].start != 0:
             slc = [slice(None),]*array.ndim
             slc[axis] = slice(overlaps[axis], None)
-            array = array[tuple(slc)]
+            loverlap_index = tuple(slc)
+            logger.debug((
+                f'Remove left overlap on axis {axis}: {loverlap_index} ({type(loverlap_index)}) '
+                f'from labeled block of shape: {array.shape} '
+            ))
+            array = array[loverlap_index]
             a, b = crop[axis].start, crop[axis].stop
             crop_trimmed[axis] = slice(a + overlaps[axis], b)
         if array.shape[axis] > blocksize[axis]:
             slc = [slice(None),]*array.ndim
             slc[axis] = slice(None, blocksize[axis])
-            array = array[tuple(slc)]
+            roverlap_index = tuple(slc)
+            logger.debug((
+                f'Remove right overlap on axis {axis}: {roverlap_index} ({type(roverlap_index)}) '
+                f'from labeled block of shape: {array.shape} '
+            ))
+            array = array[roverlap_index]
             a = crop_trimmed[axis].start
             crop_trimmed[axis] = slice(a, a + blocksize[axis])
     return array, crop_trimmed
@@ -531,12 +581,14 @@ def block_faces(segmentation):
     return faces
 
 
-def determine_merge_relabeling(block_indices, faces, used_labels):
+def determine_merge_relabeling(block_indices, faces, used_labels,
+                               label_dist_th=1.0):
     """Determine boundary segment mergers, remap all label IDs to merge
        and put all label IDs in range [1..N] for N global segments found"""
     faces = adjacent_faces(block_indices, faces)
     label_range = np.max(used_labels)
-    label_groups = block_face_adjacency_graph(faces, label_range)
+    label_groups = block_face_adjacency_graph(faces, label_range,
+                                              label_dist_th=label_dist_th)
     new_labeling = scipy.sparse.csgraph.connected_components(
         label_groups, directed=False)[1]
     logger.debug(f'Connected labels: {new_labeling}')
@@ -567,7 +619,7 @@ def adjacent_faces(block_indices, faces):
     return face_pairs
 
 
-def block_face_adjacency_graph(faces, nlabels):
+def block_face_adjacency_graph(faces, nlabels, label_dist_th=1.0):
     """
     Shrink labels in face plane, then find which labels touch across the face boundary
     """
@@ -576,8 +628,8 @@ def block_face_adjacency_graph(faces, nlabels):
     for face in faces:
         sl0 = tuple(slice(0, 1) if d == 2 else slice(None) for d in face.shape)
         sl1 = tuple(slice(1, 2) if d == 2 else slice(None) for d in face.shape)
-        a = shrink_labels(face[sl0], 1.0)
-        b = shrink_labels(face[sl1], 1.0)
+        a = shrink_labels(face[sl0], label_dist_th)
+        b = shrink_labels(face[sl1], label_dist_th)
         face = np.concatenate((a, b), axis=np.argmin(a.shape))
         mapped = di_ndmeasure._utils._label._across_block_label_grouping(
             face,

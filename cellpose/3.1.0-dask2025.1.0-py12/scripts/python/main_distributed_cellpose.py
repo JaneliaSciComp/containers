@@ -6,12 +6,13 @@ import io_utils.read_utils as read_utils
 import io_utils.write_utils as write_utils
 
 from cellpose import version_str as cellpose_version
+from cellpose.models import get_user_models
 from cellpose.cli import get_arg_parser
 from dask.distributed import (Client, LocalCluster)
 from flatten_json import flatten
 
-from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_shrink_labels_merge)
-from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_simple_merge)
+from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_dt_merge)
+from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_iou_merge)
 from distributed_cellpose.preprocessing import get_preprocessing_steps
 
 from utils.configure_logging import (configure_logging)
@@ -105,6 +106,12 @@ def _define_args():
                              default=0.,
                              help='Sample expansion factor')
 
+    args_parser.add_argument('--eval-model-with-size', '--eval_model_with_size',
+                             dest='eval_model_with_size',
+                             action='store_true',
+                             default=False,
+                             help='Eval model using both CellposeModel and SizeModel')
+
     args_parser.add_argument('--test-mode', '--test_mode',
                              dest='test_mode',
                              action='store_true',
@@ -133,10 +140,11 @@ def _define_args():
     distributed_args.add_argument('--models-dir', dest='models_dir',
                                   type=str,
                                   help='cache cellpose models directory')
-    distributed_args.add_argument('--model', dest='segmentation_model',
+    distributed_args.add_argument('--model',
+                                  dest='segmentation_model',
                                   type=str,
                                   default='cyto',
-                                  help='segmentation model')
+                                  help='A builtin segmentation model or a model added to the cellpose models directory')
     distributed_args.add_argument('--iou-threshold', '--iou_threshold',
                                   dest='iou_threshold',
                                   type=float,
@@ -147,14 +155,19 @@ def _define_args():
                                   type=int,
                                   default=1,
                                   help='Intersection over union depth')
+    distributed_args.add_argument('--label-distance-threshold', '--label-dist-th',
+                                  dest='label_dist_th',
+                                  type=float,
+                                  default=1.0,
+                                  help='Label distance transform threshold used for merging labels'),
     distributed_args.add_argument('--save-intermediate-labels',
                                   action='store_true',
                                   dest='save_intermediate_labels',
                                   default=False,
                                   help='Save intermediate labels as zarr')
-    distributed_args.add_argument('--shrink-labels-to-merge',
+    distributed_args.add_argument('--merge-with-labels-dt',
                                   action='store_true',
-                                  dest='with_shrink_labels_merge',
+                                  dest='merge_labels_with_dt',
                                   default=False,
                                   help='Shrink labels to merge')
     
@@ -179,12 +192,18 @@ def _define_args():
 def _run_segmentation(args):
     load_dask_config(args.dask_config)
     if args.models_dir is not None:
-        models_dir = args.models_dir
+        models_dir = os.path.realpath(args.models_dir)
+        os.environ['CELLPOSE_LOCAL_MODELS_PATH'] = models_dir
     elif os.environ['CELLPOSE_LOCAL_MODELS_PATH']:
         models_dir = os.environ['CELLPOSE_LOCAL_MODELS_PATH']
     else:
         models_dir = None
 
+    if models_dir:
+        logger.info(f'Download cellpose models to {models_dir}')
+        get_user_models()
+
+    logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
     worker_config = ConfigureWorkerPlugin(models_dir,
                                           args.logging_config,
                                           args.verbose,
@@ -251,10 +270,10 @@ def _run_segmentation(args):
 
         try:
             logger.info(f'Invoke segmentation with blocksize {process_blocksize}')
-            if (args.with_shrink_labels_merge):
-                distributed_eval_method = eval_with_shrink_labels_merge
+            if (args.merge_labels_with_dt):
+                distributed_eval_method = eval_with_labels_dt_merge
             else:
-                distributed_eval_method = eval_with_simple_merge
+                distributed_eval_method = eval_with_iou_merge
 
             if args.anisotropy:
                 anisotropy = args.anisotropy
@@ -268,6 +287,15 @@ def _run_segmentation(args):
                                                           args.preprocessing_config,
                                                           voxel_spacing=voxel_spacing)
             logger.info(f'Preprocessing steps: {preprocessing_steps}')
+
+            if args.z_axis is not None and args.z_axis >= 0:
+                z_axis = args.z_axis
+            else:
+                z_axis = 0 # default to first axis
+            if args.channel_axis is not None and args.channel_axis >= 0:
+                channel_axis = args.channel_axis
+            else:
+                channel_axis = None
             # ignore bounding boxes
             output_labels, _ = distributed_eval_method(
                 args.input,
@@ -285,16 +313,20 @@ def _run_segmentation(args):
                 flow_threshold=args.flow_threshold,
                 cellprob_threshold=args.cellprob_threshold,
                 stitch_threshold=args.stitch_threshold,
+                z_axis=z_axis,
+                channel_axis=channel_axis,
                 eval_channels=eval_channels,
                 use_torch=args.use_gpu,
                 use_gpu=args.use_gpu,
                 gpu_device=args.gpu_device,
                 max_tasks=args.max_cellpose_tasks,
-                iou_threshold=args.iou_threshold,
                 iou_depth=args.iou_depth,
+                iou_threshold=args.iou_threshold,
+                label_dist_th=args.label_dist_th,
                 persist_labeled_blocks=args.save_intermediate_labels,
+                preprocessing_steps=preprocessing_steps,
+                eval_model_with_size=args.eval_model_with_size,
                 test_mode=args.test_mode,
-                preprocessing_steps=preprocessing_steps
             )
 
             persisted_labels = write_utils.save(

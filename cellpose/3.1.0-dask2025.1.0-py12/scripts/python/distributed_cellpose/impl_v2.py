@@ -40,6 +40,7 @@ def distributed_eval(
         eval_channels=None,
         do_3D=True,
         z_axis=0,
+        channel_axis=None,
         anisotropy=None,
         min_size=15,
         resample=True,
@@ -50,8 +51,10 @@ def distributed_eval(
         gpu_batch_size=8,
         iou_depth=1,
         iou_threshold=0,
+        label_dist_th=1.0,
         persist_labeled_blocks=False,
         test_mode=False,
+        eval_model_with_size=True,
 ):
     """
     partition a 3-D volume into overlapping blocks and run cellpose segmentation
@@ -62,9 +65,16 @@ def distributed_eval(
         # always specify the diameter
         diameter = 30
     image_ndim = len(image_shape)
-    blocksoverlap = (blocksoverlap if (blocksoverlap is not None and
-                                       len(blocksoverlap) == image_ndim)
-                     else (diameter * 2,) * image_ndim)
+    # check blocksoverlap
+    if blocksoverlap is None:
+        blocksoverlap = (diameter*2,) * image_ndim
+    elif isinstance(blocksoverlap, (int, float)):
+        blocksoverlap = (int(blocksoverlap),) * image_ndim
+    elif isinstance(blocksoverlap, tuple):
+        if len(blocksoverlap) < image_ndim:
+            blocksoverlap = blocksoverlap + (diameter*2,) * (image_ndim-len(blocksoverlap))
+    else:
+        raise ValueError(f'Invalid blocksoverlap {blocksoverlap} of type {type(blocksoverlap)} - expected tuple')
 
     blockchunks = np.array(blocksize, dtype=int)
     blockoverlaps = np.array(blocksoverlap, dtype=int)
@@ -104,6 +114,7 @@ def distributed_eval(
         eval_channels=eval_channels,
         do_3D=do_3D,
         z_axis=z_axis,
+        channel_axis=channel_axis,
         diameter=diameter,
         anisotropy=anisotropy,
         min_size=min_size,
@@ -115,6 +126,7 @@ def distributed_eval(
         use_gpu=use_gpu,
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
+        eval_model_with_size=eval_model_with_size,
     )
 
     logger.info(f'Cache cellpose models {model_type}')
@@ -250,13 +262,19 @@ def _segment_block(eval_method,
     max_label = np.max(labels)
 
     # remove overlaps
+    logger.debug(f'Remove overlaps for block: {block_index}:{block_coords}:{labels.shape}')
     new_block_coords = list(block_coords)
     for axis in range(block_data.ndim):
         # left side
         if block_coords[axis].start != 0:
             slc = [slice(None),]*block_data.ndim
             slc[axis] = slice(blockoverlaps[axis], None)
-            labels = labels[tuple(slc)]
+            loverlap_index = tuple(slc)
+            logger.debug((
+                f'Remove left overlap on axis {axis}: {loverlap_index} ({type(loverlap_index)}) '
+                f'from labeled block of shape: {labels.shape} '
+            ))
+            labels = labels[loverlap_index]
             a, b = block_coords[axis].start, block_coords[axis].stop
             new_block_coords[axis] = slice(a + blockoverlaps[axis], b)
 
@@ -264,7 +282,12 @@ def _segment_block(eval_method,
         if block_shape[axis] > blocksize[axis]:
             slc = [slice(None),]*block_data.ndim
             slc[axis] = slice(None, blocksize[axis])
-            labels = labels[tuple(slc)]
+            roverlap_index = tuple(slc)
+            logger.debug((
+                f'Remove right overlap on axis {axis}: {roverlap_index} ({type(roverlap_index)}) '
+                f'from labeled block of shape: {labels.shape} '
+            ))
+            labels = labels[roverlap_index]
             a = new_block_coords[axis].start
             new_block_coords[axis] = slice(a, a + blocksize[axis])
 
@@ -278,10 +301,11 @@ def _segment_block(eval_method,
 
 def _eval_model(block_index,
                 block_data,
-                model_type='cyto',
+                model_type='cyto3',
                 eval_channels=None,
                 do_3D=True,
                 z_axis=0,
+                channel_axis=None,
                 diameter=None,
                 anisotropy=None,
                 min_size=15,
@@ -293,6 +317,7 @@ def _eval_model(block_index,
                 use_gpu=False,
                 gpu_device=None,
                 gpu_batch_size=8,
+                eval_model_with_size=True,
                 ):
     from cellpose import models
 
@@ -304,27 +329,37 @@ def _eval_model(block_index,
 
     np.random.seed(block_index)
 
+    start_time = time.time()
     segmentation_device, gpu = models.assign_device(use_torch=use_torch,
                                                     gpu=use_gpu,
                                                     device=gpu_device)
-
-    model = models.Cellpose(gpu=gpu,
-                            model_type=model_type,
-                            device=segmentation_device)
-    labels, _, _, _ = model.eval(block_data,
-                                 channels=eval_channels,
-                                 diameter=diameter,
-                                 z_axis=z_axis,
-                                 do_3D=do_3D,
-                                 min_size=min_size,
-                                 resample=resample,
-                                 anisotropy=anisotropy,
-                                 flow_threshold=flow_threshold,
-                                 cellprob_threshold=cellprob_threshold,
-                                 stitch_threshold=stitch_threshold,
-                                 batch_size=gpu_batch_size,
-                                 )
-    logger.info(f'Finished model eval for block: {block_index}')
+    if eval_model_with_size:
+        model = models.Cellpose(gpu=gpu,
+                                model_type=model_type,
+                                device=segmentation_device)
+    else:
+        model = models.CellposeModel(gpu=gpu,
+                                     model_type=model_type,
+                                     device=segmentation_device)
+    labels = model.eval(block_data,
+                        channels=eval_channels,
+                        diameter=diameter,
+                        z_axis=z_axis,
+                        channel_axis=channel_axis,
+                        do_3D=do_3D,
+                        min_size=min_size,
+                        resample=resample,
+                        anisotropy=anisotropy,
+                        flow_threshold=flow_threshold,
+                        cellprob_threshold=cellprob_threshold,
+                        stitch_threshold=stitch_threshold,
+                        batch_size=gpu_batch_size,
+                        )[0]
+    end_time = time.time()
+    logger.info((
+        f'Finished model eval for block: {block_index} '
+        f'in {end_time-start_time}s '
+    ))
     return labels.astype(np.uint32)
 
 
