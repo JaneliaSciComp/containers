@@ -130,10 +130,6 @@ def _define_args():
     distributed_args.add_argument('--worker-cpus', dest='worker_cpus',
                                   type=int, default=0,
                                   help='Number of cpus allocated to a dask worker')
-    distributed_args.add_argument('--max-cellpose-tasks', '--max_cellpose_tasks',
-                                  dest='max_cellpose_tasks',
-                                  type=int, default=-1,
-                                  help='Max dask cellpose tasks')
     distributed_args.add_argument('--device', required=False, default='0', type=str,
                                   dest='device',
                                   help='which device to use, use an integer for torch, or mps for M1')    
@@ -165,11 +161,11 @@ def _define_args():
                                   dest='save_intermediate_labels',
                                   default=False,
                                   help='Save intermediate labels as zarr')
-    distributed_args.add_argument('--merge-with-labels-dt',
+    distributed_args.add_argument('--merge-labels-iou-only',
                                   action='store_true',
-                                  dest='merge_labels_with_dt',
+                                  dest='merge_labels_with_iou',
                                   default=False,
-                                  help='Shrink labels to merge')
+                                  help='Only use IOU to merge labels')
     
     distributed_args.add_argument('--preprocessing-steps', '--preprocessing_steps',
                                   dest='preprocessing_steps',
@@ -270,10 +266,10 @@ def _run_segmentation(args):
 
         try:
             logger.info(f'Invoke segmentation with blocksize {process_blocksize}')
-            if (args.merge_labels_with_dt):
-                distributed_eval_method = eval_with_labels_dt_merge
-            else:
+            if (args.merge_labels_with_iou):
                 distributed_eval_method = eval_with_iou_merge
+            else:
+                distributed_eval_method = eval_with_labels_dt_merge
 
             if args.anisotropy:
                 anisotropy = args.anisotropy
@@ -319,7 +315,6 @@ def _run_segmentation(args):
                 use_torch=args.use_gpu,
                 use_gpu=args.use_gpu,
                 gpu_device=args.gpu_device,
-                max_tasks=args.max_cellpose_tasks,
                 iou_depth=args.iou_depth,
                 iou_threshold=args.iou_threshold,
                 label_dist_th=args.label_dist_th,

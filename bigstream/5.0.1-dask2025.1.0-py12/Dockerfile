@@ -1,8 +1,8 @@
 # Create final image
-FROM ghcr.io/janeliascicomp/dask:2024.12.1-py11-ol9
+FROM ghcr.io/janeliascicomp/dask:2025.1.0-py12-ol9
 ARG TARGETPLATFORM
-ARG BIGSTREAM_BRANCH=goinac-dev
-ARG BIGSTREAM_COMMIT=e608ace
+ARG BIGSTREAM_BRANCH=master
+ARG BIGSTREAM_COMMIT=b45e5d2
 
 RUN dnf install -y \
         git \

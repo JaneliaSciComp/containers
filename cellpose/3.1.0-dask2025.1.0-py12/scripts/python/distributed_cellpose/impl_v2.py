@@ -15,7 +15,7 @@ import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
 
 from cellpose.models import get_user_models
-from dask.distributed import as_completed, Semaphore
+from dask.distributed import as_completed
 from sklearn import metrics as sk_metrics
 
 
@@ -47,7 +47,6 @@ def distributed_eval(
         flow_threshold=0.4,
         cellprob_threshold=0,
         stitch_threshold=0,
-        max_tasks=-1,
         gpu_batch_size=8,
         iou_depth=1,
         iou_threshold=0,
@@ -100,16 +99,8 @@ def distributed_eval(
         if _is_not_masked(mask, image_shape, blockslice):
             blocks_info.append(((i, j, k), blockslice))
 
-    if max_tasks > 0:
-        logger.info(f'Limit segmentation tasks to {max_tasks}')
-        tasks_semaphore = Semaphore(max_leases=max_tasks,
-                                    name='CellposeLimiter')
-        eval_model_method = _throttle(_eval_model, tasks_semaphore)
-    else:
-        eval_model_method = _eval_model
-
     eval_block = functools.partial(
-        eval_model_method,
+        _eval_model,
         model_type=model_type,
         eval_channels=eval_channels,
         do_3D=do_3D,
@@ -223,18 +214,6 @@ def _read_block_data(block_info, image_container_path, image_subpath=None):
                                     block_coords=block_coords)
     logger.info(f'Retrieved block {block_index} of shape {block_data.shape}')
     return block_data
-
-
-def _throttle(m, sem):
-    def throttled_m(*args, **kwargs):
-        with sem:
-            logger.debug(f'Secured slot to run {m}')
-            try:
-                return m(*args, **kwargs)
-            finally:
-                logger.debug(f'Release slot used for {m}')
-
-    return throttled_m
 
 
 def _segment_block(eval_method,

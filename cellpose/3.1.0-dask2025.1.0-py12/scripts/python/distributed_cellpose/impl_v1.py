@@ -42,7 +42,6 @@ def distributed_eval(
         flow_threshold=0.4,
         cellprob_threshold=0,
         stitch_threshold=0,
-        max_tasks=-1,
         gpu_batch_size=8,
         iou_depth=1,
         iou_threshold=0,
