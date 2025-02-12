@@ -7,9 +7,10 @@ from logging.config import fileConfig
 
 def configure_logging(config_file, verbose, logger_name=None):
     if config_file and os.path.exists(config_file):
-        print(f'Configure logging using verbose={verbose} from {config_file}, logger name: {logger_name}')
+        print(f'Configure logging using {config_file}, logger name: {logger_name}')
         fileConfig(config_file)
     else:
+        print(f'Configure logging using basic config - verbose: {verbose}, logger name: {logger_name}')
         log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level,
