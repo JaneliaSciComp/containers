@@ -332,7 +332,23 @@ def process_block(
         box_ids : 1D numpy array, parallel to boxes, the segment IDs of the
                   boxes
     """
-    logger.info(f'RUNNING BLOCK: {block_index},\tREGION: {crop}')
+    logger.info((
+        f'RUNNING BLOCK: {block_index}, '
+        f'REGION: {crop}, '
+        f'model_type: {model_type}, '
+        f'do_3D: {do_3D}, '
+        f'diameter: {diameter}, '
+        f'eval_channels: {eval_channels}, '
+        f'z_axis: {z_axis}, '
+        f'channel_axis: {channel_axis}, '
+        f'min_size: {min_size}, '
+        f'resample: {resample}, '
+        f'anisotropy: {anisotropy}, '
+        f'flow_threshold: {flow_threshold}, '
+        f'cellprob_threshold: {cellprob_threshold}, '
+        f'stitch_threshold: {stitch_threshold}, '
+        f'gpu_batch_size: {gpu_batch_size}, '
+    ))
     segmentation = read_preprocess_and_segment(
         image_container_path, 
         image_subpath, 

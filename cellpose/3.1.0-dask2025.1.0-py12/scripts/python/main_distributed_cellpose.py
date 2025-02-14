@@ -222,7 +222,7 @@ def _run_segmentation(args):
     if args.voxel_spacing:
         voxel_spacing = read_utils.get_voxel_spacing({}, args.voxel_spacing)
     else:
-        voxel_spacing = read_utils.get_voxel_spacing(image_attrs, (1,) * image_ndim)
+        voxel_spacing = read_utils.get_voxel_spacing(image_attrs, (1.,) * image_ndim)
 
     if voxel_spacing is not None:
         if args.expansion_factor > 0:
@@ -271,7 +271,7 @@ def _run_segmentation(args):
             else:
                 distributed_eval_method = eval_with_labels_dt_merge
 
-            if args.anisotropy:
+            if args.anisotropy and args.anisotropy != 1.0:
                 anisotropy = args.anisotropy
             else:
                 if voxel_spacing is not None:

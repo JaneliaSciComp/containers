@@ -25,8 +25,6 @@ COPY conda-env.yml /tmp/
 
 RUN mamba env update -n base -f /tmp/conda-env.yml
 
-ENV CELLPOSE_LOCAL_MODELS_PATH=
-
 WORKDIR /opt/scripts/cellpose
 
 RUN mkdir -p /etc/cellpose/config
