@@ -303,7 +303,18 @@ def _eval_model(block_index,
     logger.info((
         f'Run model eval for block: {block_index}, '
         f'size: {block_data.shape}, '
-        f'3-D:{do_3D}, diameter:{diameter} '
+        f'do_3D: {do_3D}, '
+        f'diameter: {diameter}, '
+        f'eval_channels: {eval_channels}, '
+        f'z_axis: {z_axis}, '
+        f'channel_axis: {channel_axis}, '
+        f'min_size: {min_size}, '
+        f'resample: {resample}, '
+        f'anisotropy: {anisotropy}, '
+        f'flow_threshold: {flow_threshold}, '
+        f'cellprob_threshold: {cellprob_threshold}, '
+        f'stitch_threshold: {stitch_threshold}, '
+        f'gpu_batch_size: {gpu_batch_size}, '
     ))
 
     np.random.seed(block_index)
