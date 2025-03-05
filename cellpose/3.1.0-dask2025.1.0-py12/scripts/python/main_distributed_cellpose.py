@@ -25,6 +25,7 @@ def _floattuple(arg):
     else:
         return ()
 
+
 def _inttuple(arg):
     if arg is not None and arg.strip():
         return tuple([int(d) for d in arg.split(',')])
