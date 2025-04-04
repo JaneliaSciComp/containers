@@ -1,0 +1,6 @@
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy>=1.26.0,<2
+  - zarr=2.16.1
