@@ -11,16 +11,26 @@
 #
 # To build:
 #   cd ${RENDER_REPO_ROOT_DIR}
-#   docker build --file render-ws-with-mongo-db/Dockerfile --no-cache --tag ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.3 .
+#   docker build --file render-ws-with-mongo-db/Dockerfile --no-cache --tag ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5 .
 #
 # To run a container in detached mode:
-#   docker run --publish 8080:8080 --detach --rm ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.3
+#   docker run --publish 8080:8080 --detach --rm ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5
 #
-# To launch an interactive bash shell within a container:
-#   docker run --interactive --tty --publish 8080:8080 --entrypoint /bin/bash --rm ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.3
+# To run a container in detached mode with the standard MongoDB dump directory mounted:
+#   docker run --publish 8080:8080 --detach --rm --mount type=bind,source=/mnt/disks/mongodb_dump_fs/dump,target=/mnt/disks/mongodb_dump_fs/dump ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5
+#
+# To launch an interactive bash shell within a new container:
+#   docker run --interactive --tty --publish 8080:8080 --entrypoint /bin/bash --rm ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5
+#
+# To launch an interactive bash shell within an already running container:
+#   docker ps -a     # to get the container id
+#   docker exec --interactive --tty <container-id> /bin/bash
+#
+# To launch an interactive bash shell within an already running container when only one container is running:
+#   docker exec --interactive --tty "$(docker ps -q)" /bin/bash
 #
 # To push the image to the janeliascicomp containers GitHub registry (see https://github.com/JaneliaSciComp/containers/tree/main):
-#   docker push ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.3
+#   docker push ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5
 #
 # Published Containers Notes:
 #   - Before pushing, your docker instance needs to be logged in to GitHub.
@@ -34,16 +44,10 @@
 FROM ubuntu:22.04
 LABEL maintainer="Eric Trautman <trautmane@janelia.hhmi.org>"
 
-# 1: Install Git, Maven, curl, vim, gnupg (needed for keyring that Google Cloud SDK install requires)
+# 1: Install Git, Maven, curl, vim
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y git maven curl vim gnupg
-
-# 1b: Install Google Cloud SDK ( steps from https://stackoverflow.com/a/61420657 )
-# RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
-#    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
-#    apt-get update && \
-#    apt-get install -y google-cloud-sdk
+    apt-get install -y git maven curl vim
 
 # 2. Clone the Repository
 WORKDIR /var/www/
@@ -56,7 +60,8 @@ WORKDIR /var/www/render/
 RUN git checkout newsolver
 
 RUN ./render-ws/src/main/scripts/install.sh && \
-    cp ./render-ws-with-mongo-db/startup_mongodb_and_jetty.sh .
+    cp ./render-ws-with-mongo-db/*.sh . && \
+    chmod 755 *.sh
 
 # 4. Build only the render-app and render-ws modules and skip tests
 RUN { echo 'JAVA_HOME="$(readlink -m ./deploy/*jdk*)"'; } >> ~/.mavenrc  && \
@@ -83,9 +88,10 @@ RUN wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key 
     sudo ln -s /bin/true /bin/systemctl && \
     echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list && \
     sudo apt-get update && \
-    sudo apt-get install -y mongodb-org-server=6.0.4 mongodb-org-tools=6.0.4 && \
+    sudo apt-get install -y mongodb-org-server=6.0.4 mongodb-org-tools=6.0.4 mongodb-mongosh=2.3.8 && \
     echo "mongodb-org-server hold" | sudo dpkg --set-selections && \
     echo "mongodb-org-tools hold" | sudo dpkg --set-selections && \
+    echo "mongodb-mongosh hold" | sudo dpkg --set-selections && \
     sudo rm /bin/systemctl
 
 # expose the render port
