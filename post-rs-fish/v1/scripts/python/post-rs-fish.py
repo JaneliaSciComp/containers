@@ -11,8 +11,6 @@ def _floattuple(arg):
         return ()
 
 
-
-
 def _define_args():
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument('-i', '--input',
@@ -81,7 +79,6 @@ def _post_process_rsfish_csv_results(args):
     print(f'Saving {rsfish_spots.shape[0]} points in micron space to {args.output}')
     np.savetxt(args.output, rsfish_spots, delimiter=',')
 
- 
 
 def _main():
     args_parser = _define_args()
