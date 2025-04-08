@@ -1,9 +1,8 @@
-FROM azul/zulu-openjdk:8-latest
+FROM ubuntu:24.04
 
 ARG SPARK_VERSION=3.3.2
 ARG HADOOP_VERSION=3
 ARG SCALA_VERSION=2.12
-
 
 LABEL \
     org.opencontainers.image.title="Apache Spark" \
@@ -12,8 +11,6 @@ LABEL \
     org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.version=${SPARK_VERSION}
 
-# Reset user to root so that we can install missing packages
-# and the image works in Singularity
 USER root
 
 ARG spark_uid=185
@@ -22,13 +19,22 @@ RUN groupadd --system --gid=${spark_uid} spark \
  && useradd --system --uid=${spark_uid} --gid=spark spark
 
 RUN set -ex; \
-    apt-get update -y; \
+    apt update -y; \
     apt-get install -y \
         gnupg2 \
         wget curl tar tini libc6 libpam-modules \
+        gnupg2 ca-certificates \
         krb5-user libnss3 procps net-tools hostname gosu \
-        libnss-wrapper python3 python3-pip; \
-    mkdir /opt/spark; \
+        libnss-wrapper \
+        python3 python3-pip;
+
+RUN curl -O https://repos.azul.com/azul-repo.key; \
+    gpg --dearmor < azul-repo.key > /usr/share/keyrings/azul.gpg; \
+    echo "deb [signed-by=/usr/share/keyrings/azul.gpg] https://repos.azul.com/zulu/deb stable main" | tee /etc/apt/sources.list.d/zulu.list; \
+    apt update -y; \
+    apt-get install -y zulu8-jdk;
+
+RUN mkdir /opt/spark; \
     mkdir /opt/spark/python; \
     mkdir /opt/spark/work-dir; \
     chmod g+w /opt/spark/work-dir; \
