@@ -1,7 +1,5 @@
 FROM oraclelinux:9
 
-ARG TARGETPLATFORM
-
 RUN dnf install -y \
     tar wget
 
