@@ -8,6 +8,8 @@ ARG BIGSTITCHER_SPARK_GIT_HASH
 RUN apt update -y \
  && apt-get install -y \
         git curl maven \
+        libblosc1 libblosc-dev \
+        libzstd1 libzstd-dev \
  && curl -sSL https://bit.ly/install-xq | bash
 
 
@@ -53,6 +55,8 @@ RUN git clone --branch main --depth 1 https://github.com/Blosc/c-blosc.git . \
 
 ENV SPARK_HOME=/opt/spark
 ENV HOME=/root
+
+RUN mkdir -p /root/.ivy2/local
 
 WORKDIR /app
 COPY --from=builder /tmp/app/LICENSE /app/LICENSE

@@ -5,24 +5,6 @@ ARG HADOOP_VERSION=3
 ARG SCALA_VERSION=2.12
 
 
-# Reset user to root so that we can install missing packages
-# and the image works in Singularity
-USER root
-
-RUN apt update -y \
- && apt-get install -y \
-        net-tools wget curl tar \
-        hostname python3 python3-pip
-
-WORKDIR /tmp
-
-RUN wget https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
- && tar -xvzf spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
- && mv spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} /opt/spark \
- && rm spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
-
-WORKDIR /opt
-
 LABEL \
     org.opencontainers.image.title="Apache Spark" \
     org.opencontainers.image.description="Apache Spark is a unified analytics engine for large-scale data processing. This container combines the Spark runtime with additional scripts for simplified creation of Spark clusters." \
@@ -30,8 +12,55 @@ LABEL \
     org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.version=${SPARK_VERSION}
 
-# Save version inside container
-RUN echo "${SPARK_VERSION}" > /opt/spark/VERSION
+# Reset user to root so that we can install missing packages
+# and the image works in Singularity
+USER root
+
+ARG spark_uid=185
+
+RUN groupadd --system --gid=${spark_uid} spark \
+ && useradd --system --uid=${spark_uid} --gid=spark spark
+
+RUN set -ex; \
+    apt-get update; \
+    apt-get install -y \
+        gnupg2 \
+        wget curl tar tini libc6 libpam-modules \
+        krb5-user libnss3 procps net-tools hostname gosu \
+        libnss-wrapper python3 python3-pip; \
+    mkdir -p /opt/spark; \
+    mkdir /opt/spark/python; \
+    mkdir -p /opt/spark/work-dir; \
+    chmod g+w /opt/spark/work-dir; \
+    touch /opt/spark/RELEASE; \
+    chown -R spark:spark /opt/spark; \
+    echo "auth required pam_wheel.so use_uid" >> /etc/pam.d/su; \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp
+
+RUN mkdir sparkinstall; \
+    cd sparkinstall; \
+    wget https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz -O spark.tgz; \
+    tar -xf spark.tgz --strip-components=1; \
+    chown -R spark:spark .; \
+    mv jars /opt/spark/; \
+    mv RELEASE /opt/spark/; \
+    mv bin /opt/spark/; \
+    mv sbin /opt/spark/; \
+    mv kubernetes/dockerfiles/spark/decom.sh /opt/; \
+    mv python/pyspark /opt/spark/python/pyspark/; \
+    mv python/lib /opt/spark/python/lib/; \
+    mv R /opt/spark/; \
+    chmod a+x /opt/decom.sh; \
+    echo "${SPARK_VERSION}" > /opt/spark/VERSION; \
+    cd ..; \
+    rm -rf sparkinstall;
+
+ENV SPARK_HOME=/opt/spark
+
+WORKDIR /opt/spark/work-dir
 
 # Add scripts for running pipelines
 COPY ./scripts /opt/scripts
+RUN chmod -R +x /opt/scripts
