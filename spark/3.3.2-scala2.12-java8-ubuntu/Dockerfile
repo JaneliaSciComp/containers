@@ -22,15 +22,15 @@ RUN groupadd --system --gid=${spark_uid} spark \
  && useradd --system --uid=${spark_uid} --gid=spark spark
 
 RUN set -ex; \
-    apt-get update; \
+    apt-get update -y; \
     apt-get install -y \
         gnupg2 \
         wget curl tar tini libc6 libpam-modules \
         krb5-user libnss3 procps net-tools hostname gosu \
         libnss-wrapper python3 python3-pip; \
-    mkdir -p /opt/spark; \
+    mkdir /opt/spark; \
     mkdir /opt/spark/python; \
-    mkdir -p /opt/spark/work-dir; \
+    mkdir /opt/spark/work-dir; \
     chmod g+w /opt/spark/work-dir; \
     touch /opt/spark/RELEASE; \
     chown -R spark:spark /opt/spark; \
