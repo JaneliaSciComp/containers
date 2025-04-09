@@ -14,6 +14,23 @@ executor_memory=$1; shift
 driver_cores=$1; shift
 driver_memory=$1; shift
 
+# Extract additional spark config from the remaining arguments
+additional_spark_config=""
+remaining_args=()
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --spark-conf)
+            additional_spark_config="${additional_spark_config} --conf $2"
+            shift 2
+            ;;
+        *)
+            remaining_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
 echo "Starting Spark driver with main class ${main_class}"
 
 # Initialize the environment for Spark
@@ -40,6 +57,7 @@ else
 fi
 
 set -x
+
 # Run the Spark driver to submit the application.
 # The default (4MB) open cost consolidates files into tiny partitions regardless of 
 # the number of cores. By forcing this parameter to zero, we can specify the exact 
@@ -50,9 +68,12 @@ set -x
     --class ${main_class} \
     --conf spark.files.openCostInBytes=0 \
     --conf spark.default.parallelism=${parallelism} \
+    ${additional_spark_config} \
     --executor-cores ${worker_cores} \
     --executor-memory ${executor_memory} \
     --driver-cores ${driver_cores} \
     --driver-memory ${driver_memory} \
-    ${app_jar_file} $@
+    ${app_jar_file} \
+    ${remaining_args[@]}
+
 set +x
