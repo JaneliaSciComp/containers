@@ -42,16 +42,25 @@ set +u
 . "/opt/spark/bin/load-spark-env.sh"
 set -u
 
+. "$DIR/userutils.sh"
+
 echo "Determining manager IP address..."
 . $DIR/determine_ip.sh $container_engine
 
 # Start the Spark manager
 echo "Spark master (${local_ip}) output to ${spark_master_log_file}"
 set -x
-/opt/spark/bin/spark-class org.apache.spark.deploy.master.Master \
-    -h $local_ip \
-    --properties-file ${spark_config_filepath} \
-    ${args} &> ${spark_master_log_file} &
+CMD=(
+    /opt/spark/bin/spark-class
+    org.apache.spark.deploy.master.Master
+    -h ${local_ip}
+    --properties-file ${spark_config_filepath}
+    ${args}
+)
+echo "CMD: ${CMD[@]}"
+
+attempt_setup_fake_passwd_entry
+(exec $(switch_user_if_root) /usr/bin/tini -s -- "${CMD[@]}" > "${spark_master_log_file}" 2>&1) &
 spid=$!
 set +x
 

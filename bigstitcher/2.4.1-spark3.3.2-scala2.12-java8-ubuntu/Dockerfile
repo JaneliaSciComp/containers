@@ -12,7 +12,6 @@ RUN apt update -y \
         libzstd1 libzstd-dev \
  && curl -sSL https://bit.ly/install-xq | bash
 
-
 # Checkout and build the code
 WORKDIR /tmp/app
 RUN git clone https://github.com/PreibischLab/BigStitcher-Spark.git . \
@@ -37,6 +36,8 @@ LABEL \
     org.opencontainers.image.licenses="BSD-3-Clause" \
     org.opencontainers.image.version=${BIGSTITCHER_SPARK_GIT_HASH}
 
+USER root
+
 RUN apt update -y \
  && apt-get install -y \
         git \
@@ -46,17 +47,12 @@ RUN apt update -y \
 
 WORKDIR /tmp/c-blosc
 
-RUN git clone --branch main --depth 1 https://github.com/Blosc/c-blosc.git . \
- && mkdir build \ 
-    && cd build \
-    && cmake -S .. -B . \
-    && make \
-    && make install
-
-ENV SPARK_HOME=/opt/spark
-ENV HOME=/root
-
-RUN mkdir -p /root/.ivy2/local
+RUN git clone --branch main --depth 1 https://github.com/Blosc/c-blosc.git .; \
+    mkdir build; \
+    cd build; \
+    cmake -S .. -B .; \
+    make; \
+    make install;
 
 WORKDIR /app
 COPY --from=builder /tmp/app/LICENSE /app/LICENSE

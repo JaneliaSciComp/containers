@@ -3,6 +3,8 @@
 # or standalone (if the spark_uri parameter is set to "local[*]")
 DIR=$(cd "$(dirname "$0")"; pwd)
 
+set -eo pipefail
+
 container_engine=$1; shift
 cluster_work_dir=$1; shift
 spark_uri=$1; shift
@@ -44,6 +46,8 @@ set +u
 . "/opt/spark/bin/load-spark-env.sh"
 set -u
 
+. "$DIR/userutils.sh"
+
 if [ "${spark_uri}" = "local[*]" ]; then
     spark_cluster_params=
 else
@@ -62,18 +66,26 @@ set -x
 # The default (4MB) open cost consolidates files into tiny partitions regardless of 
 # the number of cores. By forcing this parameter to zero, we can specify the exact 
 # parallelism that we want.
-/opt/spark/bin/spark-class org.apache.spark.deploy.SparkSubmit \
-    $spark_cluster_params \
-    --master ${spark_uri} \
-    --class ${main_class} \
-    --conf spark.files.openCostInBytes=0 \
-    --conf spark.default.parallelism=${parallelism} \
-    ${additional_spark_config} \
-    --executor-cores ${worker_cores} \
-    --executor-memory ${executor_memory} \
-    --driver-cores ${driver_cores} \
-    --driver-memory ${driver_memory} \
-    ${app_jar_file} \
+CMD=(
+    /opt/spark/bin/spark-class
+    org.apache.spark.deploy.SparkSubmit
+    $spark_cluster_params
+    --master ${spark_uri}
+    --class ${main_class}
+    --conf spark.files.openCostInBytes=0
+    --conf spark.default.parallelism=${parallelism}
+    ${additional_spark_config}
+    --executor-cores ${worker_cores}
+    --executor-memory ${executor_memory}
+    --driver-cores ${driver_cores}
+    --driver-memory ${driver_memory}
+    ${app_jar_file}
     ${remaining_args[@]}
+)
+
+echo "CMD: ${CMD[@]}"
+
+attempt_setup_fake_passwd_entry
+(exec $(switch_user_if_root) /usr/bin/tini -s -- "${CMD[@]}")
 
 set +x
