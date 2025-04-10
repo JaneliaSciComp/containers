@@ -62,8 +62,8 @@ CMD=(
     -m "${worker_mem_in_gb}G"
     -d "${cluster_work_dir}"
     -h "${local_ip}"
-    --properties-file "${spark_config_filepath}"
     ${additional_spark_config[@]}
+    --properties-file "${spark_config_filepath}"
     ${args}
 )
 
