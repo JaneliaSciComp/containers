@@ -68,8 +68,9 @@ RUN mkdir sparkinstall; \
     rm -rf sparkinstall;
 
 ENV SPARK_HOME=/opt/spark
+WORKDIR /opt/spark//work-dir
 
-WORKDIR /opt/spark/work-dir
+ENV SPARK_WORK_DIR=/opt/spark//work-dir
 
 # Add scripts for running pipelines
 COPY ./scripts /opt/scripts
