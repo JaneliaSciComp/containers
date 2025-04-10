@@ -35,31 +35,10 @@ LABEL \
 
 USER root
 
-RUN apt update -y \
- && apt-get install -y \
-        git \
+RUN apt update -y; \
+    apt-get install -y \
         libblosc1 libblosc-dev \
-        libzstd1 libzstd-dev \
-        build-essential cmake
-
-WORKDIR /tmp
-
-RUN git clone --branch main --depth 1 https://github.com/Blosc/c-blosc.git c-blosc; \
-    cd c-blosc; \
-    mkdir build; \
-    cd build; \
-    cmake -S .. -B .; \
-    make; \
-    make install; \
-    cd /tmp;
-
-RUN git clone  --branch v1.5.6 https://github.com/facebook/zstd.git /tmp/zstd; \
-    cd /tmp/zstd; \
-    make -j"$(nproc)"; \
-    make install; \
-    cd /tmp;
-
-ENV LD_LIBRARY_PATH=/usr/local/lib
+        libzstd1 libzstd-dev;
 
 WORKDIR /app
 COPY --from=builder /tmp/app/LICENSE /app/LICENSE
