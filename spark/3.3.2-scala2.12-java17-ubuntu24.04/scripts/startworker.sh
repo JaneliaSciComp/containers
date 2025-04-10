@@ -14,6 +14,23 @@ args=$1; shift
 sleep_secs=$1; shift
 container_engine=$1; shift
 
+# Extract additional spark config from the remaining arguments
+additional_spark_config=()
+remaining_args=()
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --spark-conf)
+            additional_spark_config+=(--conf "$2")
+            shift 2
+            ;;
+        *)
+            remaining_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
 echo "Starting spark worker ${worker_id} - logging to ${spark_worker_log_file}"
 rm -f ${spark_worker_log_file} || true
 
@@ -46,6 +63,7 @@ CMD=(
     -d "${cluster_work_dir}"
     -h "${local_ip}"
     --properties-file "${spark_config_filepath}"
+    ${additional_spark_config[@]}
     ${args}
 )
 

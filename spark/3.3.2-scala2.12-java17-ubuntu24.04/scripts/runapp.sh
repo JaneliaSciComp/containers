@@ -17,13 +17,13 @@ driver_cores=$1; shift
 driver_memory=$1; shift
 
 # Extract additional spark config from the remaining arguments
-additional_spark_config=""
+additional_spark_config=()
 remaining_args=()
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --spark-conf)
-            additional_spark_config="${additional_spark_config} --conf $2"
+            additional_spark_config+=(--conf "$2")
             shift 2
             ;;
         *)
@@ -74,7 +74,7 @@ CMD=(
     --class ${main_class}
     --conf spark.files.openCostInBytes=0
     --conf spark.default.parallelism=${parallelism}
-    ${additional_spark_config}
+    ${additional_spark_config[@]}
     --executor-cores ${worker_cores}
     --executor-memory ${executor_memory}
     --driver-cores ${driver_cores}
