@@ -35,7 +35,7 @@ RUN curl -O https://repos.azul.com/azul-repo.key; \
     apt update -y; \
     apt-get install -y zulu17-jdk;
 
-ENV JAVA_HOME=/usr/lib/jvm/zulu8
+ENV JAVA_HOME=/usr/lib/jvm/zulu17
 ENV PATH=$JAVA_HOME/bin:$PATH
 
 RUN mkdir /opt/spark; \
