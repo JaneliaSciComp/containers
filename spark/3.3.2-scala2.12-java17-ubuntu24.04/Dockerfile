@@ -28,12 +28,12 @@ RUN set -ex; \
         libnss-wrapper \
         python3 python3-pip;
 
-# Install Java 8
+# Install Java 17
 RUN curl -O https://repos.azul.com/azul-repo.key; \
     gpg --dearmor < azul-repo.key > /usr/share/keyrings/azul.gpg; \
     echo "deb [signed-by=/usr/share/keyrings/azul.gpg] https://repos.azul.com/zulu/deb stable main" | tee /etc/apt/sources.list.d/zulu.list; \
     apt update -y; \
-    apt-get install -y zulu8-jdk;
+    apt-get install -y zulu17-jdk;
 
 ENV JAVA_HOME=/usr/lib/jvm/zulu8
 ENV PATH=$JAVA_HOME/bin:$PATH
