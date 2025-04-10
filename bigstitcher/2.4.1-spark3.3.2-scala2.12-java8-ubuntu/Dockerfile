@@ -1,16 +1,13 @@
-ARG SPARK_VERSION=3.3.2-scala2.12-java8-ubuntu
-ARG BIGSTITCHER_SPARK_GIT_HASH=d1008a4
+ARG SPARK_VERSION=3.3.2-scala2.12-java17-ubuntu24.04
+ARG BIGSTITCHER_SPARK_GIT_HASH=9000fbc
 
 # Staged build using builder container
 FROM azul/zulu-openjdk:8-latest AS builder
 ARG BIGSTITCHER_SPARK_GIT_HASH
 
-RUN apt update -y \
- && apt-get install -y \
-        git curl maven \
-        libblosc1 libblosc-dev \
-        libzstd1 libzstd-dev \
- && curl -sSL https://bit.ly/install-xq | bash
+RUN apt update -y; \
+    apt-get install -y git curl maven; \
+    curl -sSL https://bit.ly/install-xq | bash;
 
 # Checkout and build the code
 WORKDIR /tmp/app
@@ -43,16 +40,26 @@ RUN apt update -y \
         git \
         libblosc1 libblosc-dev \
         libzstd1 libzstd-dev \
-        g++ cmake
+        build-essential cmake
 
-WORKDIR /tmp/c-blosc
+WORKDIR /tmp
 
-RUN git clone --branch main --depth 1 https://github.com/Blosc/c-blosc.git .; \
+RUN git clone --branch main --depth 1 https://github.com/Blosc/c-blosc.git c-blosc; \
+    cd c-blosc; \
     mkdir build; \
     cd build; \
     cmake -S .. -B .; \
     make; \
-    make install;
+    make install; \
+    cd /tmp;
+
+RUN git clone  --branch v1.5.6 https://github.com/facebook/zstd.git /tmp/zstd; \
+    cd /tmp/zstd; \
+    make -j"$(nproc)"; \
+    make install; \
+    cd /tmp;
+
+ENV LD_LIBRARY_PATH=/usr/local/lib
 
 WORKDIR /app
 COPY --from=builder /tmp/app/LICENSE /app/LICENSE
