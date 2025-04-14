@@ -1,5 +1,5 @@
 ARG SPARK_VERSION=3.3.2-scala2.12-java17-ubuntu24.04
-ARG BIGSTITCHER_SPARK_GIT_HASH=9000fbc
+ARG BIGSTITCHER_SPARK_GIT_HASH=1c8cb26
 
 # Staged build using builder container with java8
 # because Bigstitcher still needs java8 to build
@@ -39,7 +39,7 @@ USER root
 RUN apt update -y; \
     apt-get install -y \
         libblosc1 libblosc-dev \
-        libzstd1 libzstd-dev;
+        libzstd1 libzstd-dev libhdf5-dev;
 
 WORKDIR /app
 COPY --from=builder /tmp/app/LICENSE /app/LICENSE
