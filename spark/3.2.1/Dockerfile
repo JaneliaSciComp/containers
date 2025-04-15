@@ -2,7 +2,6 @@ ARG SPARK_VERSION=3.2.1
 
 FROM apache/spark:v${SPARK_VERSION}
 ARG SPARK_VERSION
-ARG TARGETPLATFORM
 
 # Reset user to root so that we can install missing packages
 # and the image works in Singularity
