@@ -30,21 +30,30 @@ set +u
 . "/opt/spark/bin/load-spark-env.sh"
 set -u
 
+. "$DIR/userutils.sh"
+
 echo "Determining worker IP address..."
 . $DIR/determine_ip.sh $container_engine
 
 # Start the Spark worker
 set -x
-/opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker \
-    ${spark_uri} \
-    -c ${worker_cores} \
-    -m ${worker_mem_in_gb}G \
-    -d ${cluster_work_dir} \
-    -h ${local_ip} \
-    --properties-file ${spark_config_filepath} \
-    ${args} &> ${spark_worker_log_file} &
+CMD=(
+    /opt/spark/bin/spark-class
+    org.apache.spark.deploy.worker.Worker
+    "${spark_uri}"
+    -c "${worker_cores}"
+    -m "${worker_mem_in_gb}G"
+    -d "${cluster_work_dir}"
+    -h "${local_ip}"
+    --properties-file "${spark_config_filepath}"
+    ${args}
+)
+
+echo "CMD: ${CMD[@]}"
+
+attempt_setup_fake_passwd_entry
+(exec $(switch_user_if_root) /usr/bin/tini -s -- "${CMD[@]}" > "${spark_worker_log_file}" 2>&1) &
 spid=$!
-set +x
 
 # Ensure that Spark process dies if this script is interrupted
 function cleanup() {

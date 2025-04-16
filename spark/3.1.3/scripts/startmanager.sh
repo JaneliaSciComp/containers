@@ -14,21 +14,25 @@ container_engine=$1; shift
 echo "Starting spark master - logging to ${spark_master_log_file}"
 rm -f ${spark_master_log_file} || true
 
-# Create Spark configuration
-echo "Creating Spark configuration at ${spark_config_filepath}"
-mkdir -p `dirname ${spark_config_filepath}`
-cat > ${spark_config_filepath} <<EOF
-spark.rpc.askTimeout=300s
-spark.storage.blockManagerHeartBeatMs=30000
-spark.rpc.retry.wait=30s
-spark.kryoserializer.buffer.max=1024m
-spark.core.connection.ack.wait.timeout=600s
-spark.driver.maxResultSize=0
-spark.worker.cleanup.enabled=true
-spark.local.dir=${spark_local_dir}
-EOF
+if [[ ! -e ${spark_config_filepath} ]]; then
+    # Create Spark configuration if it does not exist
+    echo "Creating Spark configuration at ${spark_config_filepath}"
+    mkdir -p `dirname ${spark_config_filepath}`
+    echo "# Spark config file" > ${spark_config_filepath}
+    echo "spark.rpc.askTimeout=300s" >> ${spark_config_filepath}
+    echo "spark.storage.blockManagerHeartBeatMs=30000" >> ${spark_config_filepath}
+    echo "spark.rpc.retry.wait=30s" >> ${spark_config_filepath}
+    echo "spark.kryoserializer.buffer.max=1024m" >> ${spark_config_filepath}
+    echo "spark.core.connection.ack.wait.timeout=600s" >> ${spark_config_filepath}
+    echo "spark.driver.maxResultSize=0" >> ${spark_config_filepath}
+    echo "spark.worker.cleanup.enabled=true" >> ${spark_config_filepath}
+    echo "spark.local.dir=${spark_local_dir}" >> ${spark_config_filepath}
 
-echo "Created spark config file: $(cat ${spark_config_filepath})"
+    echo "Created spark config file: $(cat ${spark_config_filepath})"
+else
+    echo "Spark config file already exist: $(cat ${spark_config_filepath})"
+fi
+
 
 # Initialize the environment for Spark
 echo "Initializing Spark environment..."
@@ -42,16 +46,25 @@ set +u
 . "/opt/spark/bin/load-spark-env.sh"
 set -u
 
+. "$DIR/userutils.sh"
+
 echo "Determining manager IP address..."
 . $DIR/determine_ip.sh $container_engine
 
 # Start the Spark manager
 echo "Spark master (${local_ip}) output to ${spark_master_log_file}"
 set -x
-/opt/spark/bin/spark-class org.apache.spark.deploy.master.Master \
-    -h $local_ip \
-    --properties-file ${spark_config_filepath} \
-    ${args} &> ${spark_master_log_file} &
+CMD=(
+    /opt/spark/bin/spark-class
+    org.apache.spark.deploy.master.Master
+    -h ${local_ip}
+    --properties-file ${spark_config_filepath}
+    ${args}
+)
+echo "CMD: ${CMD[@]}"
+
+attempt_setup_fake_passwd_entry
+(exec $(switch_user_if_root) /usr/bin/tini -s -- "${CMD[@]}" > "${spark_master_log_file}" 2>&1) &
 spid=$!
 set +x
 

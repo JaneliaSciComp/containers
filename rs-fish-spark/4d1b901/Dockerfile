@@ -1,16 +1,20 @@
 ARG SPARK_VERSION=3.1.3
-ARG RSFISH_GIT_HASH=8f8954f
+ARG RSFISH_GIT_HASH=4d1b901
 
 # Staged build using builder container
-FROM janeliascicomp/builder:1.2.1 AS builder
-ARG RSFISH_GIT_HASH
+FROM azul/zulu-openjdk-debian:8u412-jdk AS builder
+ARG SPARK_VERSION
+
+USER root
+RUN apt update -y \
+ && apt-get install -y \
+        git maven 
 
 # Checkout and build the code
 WORKDIR /tmp/app
 RUN git clone https://github.com/PreibischLab/RS-FISH-Spark.git . \
-    && git reset --hard $RSFISH_GIT_HASH \
-    && /usr/local/bin/buildinfo.sh \
-    && mvn package
+ && git reset --hard $RSFISH_GIT_HASH \
+ && mvn package
 
 RUN echo "$RSFISH_GIT_HASH" > /tmp/app/VERSION
 
@@ -28,7 +32,7 @@ LABEL \
 WORKDIR /app
 COPY --from=builder /tmp/app/VERSION /app
 COPY --from=builder /tmp/app/target/RS-Fish-jar-with-dependencies.jar /app/app.jar
-COPY --from=builder /buildinfo /app
+COPY --from=builder /tmp/app/LICENSE.txt /app
 
 RUN echo "#!/bin/bash" >> /entrypoint.sh \
     && echo 'java -cp /app/app.jar -Xmx20G -Dspark.master=local[8] net.preibisch.rsfish.spark.SparkRSFISH "$@"' >> /entrypoint.sh \
