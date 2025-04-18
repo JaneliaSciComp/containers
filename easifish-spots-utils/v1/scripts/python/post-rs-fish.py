@@ -1,14 +1,9 @@
 import argparse
 import numpy as np
 
-import io_utils.zarr_utils as zarr_utils
+import io_utils.imgio as imgio
 
-
-def _floattuple(arg):
-    if arg is not None and arg.strip():
-        return tuple([float(d) for d in arg.split(',')])
-    else:
-        return ()
+from cli import floattuple
 
 
 def _define_args():
@@ -36,7 +31,7 @@ def _define_args():
 
     args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
                              dest='voxel_spacing',
-                             type=_floattuple,
+                             type=floattuple,
                              help = "voxel spacing")
     args_parser.add_argument('--expansion-factor', '--expansion_factor',
                              dest='expansion_factor',
@@ -51,13 +46,13 @@ def _define_args():
 
 def _post_process_rsfish_csv_results(args):
 
-    image_data, image_attrs = zarr_utils.open(args.image_container, args.image_dataset)
-    image_ndim = image_data.ndim
-
     if args.voxel_spacing:
-        voxel_spacing = zarr_utils.get_voxel_spacing({}, args.voxel_spacing)
-    else:
-        voxel_spacing = zarr_utils.get_voxel_spacing(image_attrs, (1.,) * image_ndim)
+        voxel_spacing = imgio.get_voxel_spacing({}, args.voxel_spacing)
+        image_ndim = len(voxel_spacing)
+    elif args.image_container:
+        image_data, image_attrs = imgio.open(args.image_container, args.image_dataset)
+        image_ndim = image_data.ndim
+        voxel_spacing = imgio.get_voxel_spacing(image_attrs, (1.,) * image_ndim)
 
     if voxel_spacing is not None:
         if args.expansion_factor > 0:
@@ -66,7 +61,7 @@ def _post_process_rsfish_csv_results(args):
             expansion = 1.
         voxel_spacing /= expansion
     else:
-        voxel_spacing = np.array((1.,) * image_ndim)
+        voxel_spacing = np.array((1.,) * 3) # use 3D
 
     print(f"Image voxel spacing: {voxel_spacing}")
 
