@@ -12,7 +12,7 @@ RUN apt update -y; \
 
 # Checkout and build the code
 WORKDIR /tmp/app
-RUN git clone https://github.com/PreibischLab/BigStitcher-Spark.git . \
+RUN git clone https://github.com/JaneliaSciComp/BigStitcher-Spark.git . \
     && git reset --hard ${BIGSTITCHER_SPARK_GIT_HASH} \
     && mvn package -P fatjar -DskipTests
 
