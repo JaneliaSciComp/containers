@@ -1,8 +1,47 @@
+import os
 import zarr
 import numpy as np
 
+from tifffile import TiffFile
 
-def open(data_path, data_subpath, data_store_name=None,
+def open(container_path, subpath):
+    real_container_path = os.path.realpath(container_path)
+    path_comps = os.path.splitext(container_path)
+
+    container_ext = path_comps[1]
+
+    if container_ext == '.tif' or container_ext == '.tiff':
+        print(f'Open tiff {container_path} ({real_container_path})')
+        return _open_tiff(real_container_path)
+    elif (container_ext == '.n5'
+          or os.path.exists(f'{real_container_path}/attributes.json')):
+        print(f'Open N5 {container_path} ({real_container_path})')
+        return _open_zarr(real_container_path, subpath, data_store_name='n5')
+    elif container_ext == '.zarr':
+        print(f'Open Zarr {container_path} ({real_container_path})')
+        return _open_zarr(real_container_path, subpath, data_store_name='zarr')
+    else:
+        print(f'Cannot handle {container_path} ({real_container_path}) {subpath}')
+        return None, {}
+
+
+def _open_tiff(data_path):
+    with TiffFile(data_path) as tif:
+        tif_store = tif.aszarr()
+        img = zarr.open(tif_store)
+        return img, _get_tiff_attrs(img)
+
+
+def _get_tiff_attrs(tif_array):
+    dict = tif_array.attrs.asdict()
+    dict.update({
+        'dataType': tif_array.dtype,
+        'dimensions': tif_array.shape,
+    })
+    return dict
+
+
+def _open_zarr(data_path, data_subpath, data_store_name=None,
          mode='r',
          block_coords=None):
     try:
