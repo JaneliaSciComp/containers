@@ -55,7 +55,7 @@ def _define_args():
     return args_parser
 
 
-def _assign_spots(args):
+def _get_spots_sizes(args):
 
     if args.voxel_spacing:
         voxel_spacing = imgio.get_voxel_spacing({}, args.voxel_spacing)
@@ -122,7 +122,7 @@ def _main():
     args = args_parser.parse_args()
 
     # run post processing
-    _assign_spots(args)
+    _get_spots_sizes(args)
 
 
 if __name__ == '__main__':

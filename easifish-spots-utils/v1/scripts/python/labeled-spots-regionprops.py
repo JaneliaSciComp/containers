@@ -57,7 +57,7 @@ def _define_args():
     return args_parser
 
 
-def _measure_spots(args):
+def _extract_spots_region_properties(args):
 
     image_data, image_attrs = imgio.open(args.image_container, args.image_dataset)
     image_ndim = image_data.ndim
@@ -114,7 +114,7 @@ def _main():
     args = args_parser.parse_args()
 
     # run post processing
-    _measure_spots(args)
+    _extract_spots_region_properties(args)
 
 
 if __name__ == '__main__':
