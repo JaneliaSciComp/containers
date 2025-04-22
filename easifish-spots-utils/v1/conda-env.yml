@@ -4,5 +4,6 @@ dependencies:
   - python=3.12
   - pandas
   - numpy>=1.26.0,<2
+  - scikit-image
   - tifffile
   - zarr=2.16.1
