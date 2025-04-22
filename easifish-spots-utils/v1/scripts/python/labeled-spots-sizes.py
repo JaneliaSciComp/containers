@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import os
 import pandas as pd
+import traceback
 
 import io_utils.imgio as imgio
 from cli import floattuple
@@ -99,7 +100,7 @@ def _get_spots_sizes(args):
                 print('NaN found in {} line# {}'.format(f, i+1))
             else:
                 if np.any(spot[i,:3]<0):
-                    print('Point outside of fixed image found in {} line# {}'.format(f, i+1))
+                    print(f'Point outside of fixed image found in {f} line# {i+1}', spot[i,:3])
                 else:
                     try:
                         # if all non-rounded coord are valid values (none is NaN)
@@ -109,7 +110,9 @@ def _get_spots_sizes(args):
                             # increment counter
                             df.loc[idx, 'count'] = df.loc[idx, 'count']+1
                     except Exception as e:
-                        print('Unexpected error in {} line# {}: {}'.format(f, i+1, e))
+                        print(f'Unexpected error in {f} line# {i+1}:', e)
+                        traceback.print_exception(e)
+
 
         count.loc[:, r] = df.to_numpy()
 

@@ -9,7 +9,6 @@ from cellpose import version_str as cellpose_version
 from cellpose.models import get_user_models
 from cellpose.cli import get_arg_parser
 from dask.distributed import (Client, LocalCluster)
-from flatten_json import flatten
 
 from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_dt_merge)
 from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_iou_merge)
