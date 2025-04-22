@@ -14,7 +14,7 @@ COPY conda-env.yml /tmp/
 RUN mamba env update -n base -f /tmp/conda-env.yml \
  && rm -rf /opt/mambaforge/pkgs
 
-WORKDIR /opt/scripts/post-rs-fish
+WORKDIR /opt/scripts/spots-utils
 
 # Add scripts
-COPY scripts/* /opt/scripts/post-rs-fish
+COPY scripts/* /opt/scripts/spots-utils
