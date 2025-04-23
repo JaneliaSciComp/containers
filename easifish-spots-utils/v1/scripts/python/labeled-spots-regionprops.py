@@ -82,7 +82,9 @@ def _extract_spots_region_properties(args):
     roi = np.unique(labels)
     image = image_data[...]
 
-    if args.bleed_dataset is None or args.bleed_dataset == args.dapi_dataset:
+    if (args.bleed_dataset is not None and
+        args.dapi_dataset is not None and
+        args.bleed_dataset == args.image_dataset):
         dapi_data, _ = imgio.open(args.image_container, args.dapi_dataset)
         dapi = dapi_data[...]
         lo = np.percentile(np.ndarray.flatten(dapi), 99.5)
