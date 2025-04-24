@@ -38,16 +38,6 @@ def _define_args():
                              type=str,
                              help = "Bleed image subpath")
 
-    args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
-                             dest='voxel_spacing',
-                             type=floattuple,
-                             help = "voxel spacing")
-    args_parser.add_argument('--expansion-factor', '--expansion_factor',
-                             dest='expansion_factor',
-                             type=float,
-                             default=0.,
-                             help='Sample expansion factor')
-
     args_parser.add_argument('-o','--output',
                              dest='output',
                              type=str,
@@ -57,29 +47,10 @@ def _define_args():
     return args_parser
 
 
-def _extract_spots_region_properties(args):
-
-    image_data, image_attrs = imgio.open(args.image_container, args.image_dataset)
-    image_ndim = image_data.ndim
-
-    if args.voxel_spacing:
-        voxel_spacing = imgio.get_voxel_spacing({}, args.voxel_spacing)
-    elif args.image_container:
-        voxel_spacing = imgio.get_voxel_spacing(image_attrs, (1.,) * image_ndim)
-
-    if voxel_spacing is not None:
-        if args.expansion_factor > 0:
-            expansion = args.expansion_factor
-        else:
-            expansion = 1.
-        voxel_spacing /= expansion
-    else:
-        voxel_spacing = np.array((1.,) * image_ndim)
-
-    print(f"Image voxel spacing: {voxel_spacing}")
-
+def _extract_cell_region_properties(args):
+    image_data, _ = imgio.open(args.image_container, args.image_dataset)
     labels, _ = imgio.open(args.labels_container, args.labels_dataset)
-    roi = np.unique(labels)
+
     image = image_data[...]
 
     if (args.bleed_dataset is not None and
@@ -93,19 +64,26 @@ def _extract_spots_region_properties(args):
         dapi_factor = np.median((image[dapi > lo] - bg_img) /
                                 (dapi[dapi > lo] - bg_dapi))
         image = np.maximum(0, image - bg_img - dapi_factor * (dapi - bg_dapi)).astype('float32')
+        print(f'Corrected bleed dataset {args.bleed_dataset} {image.shape} image')
         print('bleed_through:', dapi_factor)
         print('DAPI background:', bg_dapi)
         print('bleed_through channel background:', bg_img)
 
-    df = pd.DataFrame(data=np.empty([len(roi)-1, 4]),
-                      columns=['roi', 'mean_intensity'],
-                      dtype=object)
     labels_stat = regionprops(labels, intensity_image=image)
+    df = pd.DataFrame(data=np.empty([len(labels_stat), 5]),
+                      columns=['roi', 'area',
+                               'weighted_centroid',
+                               'weighted_local_centroid', 'mean_intensity'],
+                      dtype=object)
 
-    for i in range(0, len(roi)-1):
+    for i in range(0, len(labels_stat)):
         df.loc[i, 'roi'] = labels_stat[i].label
-        df.loc[i, 'mean_intensity'] = labels[i].mean_intensity
+        df.loc[i, 'area'] = labels_stat[i].area
+        df.loc[i, 'weighted_centroid'] = labels_stat[i].centroid_weighted
+        df.loc[i, 'weighted_local_centroid'] = labels_stat[i].centroid_weighted_local
+        df.loc[i, 'mean_intensity'] = labels_stat[i].intensity_mean
 
+    print("Writing", args.output)
     df.to_csv(args.output, index=False)
 
 
@@ -116,7 +94,7 @@ def _main():
     args = args_parser.parse_args()
 
     # run post processing
-    _extract_spots_region_properties(args)
+    _extract_cell_region_properties(args)
 
 
 if __name__ == '__main__':
