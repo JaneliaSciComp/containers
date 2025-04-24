@@ -29,6 +29,16 @@ def _define_args():
                              type=str,
                              help = "image subpath")
 
+    args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
+                             dest='voxel_spacing',
+                             type=floattuple,
+                             help = "voxel spacing")
+    args_parser.add_argument('--expansion-factor', '--expansion_factor',
+                             dest='expansion_factor',
+                             type=float,
+                             default=0.,
+                             help='Sample expansion factor')
+
     args_parser.add_argument('--dapi-subpath', '--dapi-dataset',
                              dest='dapi_dataset',
                              type=str,
@@ -48,8 +58,24 @@ def _define_args():
 
 
 def _extract_cell_region_properties(args):
-    image_data, _ = imgio.open(args.image_container, args.image_dataset)
+    image_data, image_attrs = imgio.open(args.image_container, args.image_dataset)
     labels, _ = imgio.open(args.labels_container, args.labels_dataset)
+
+    if args.voxel_spacing:
+        voxel_spacing = imgio.get_voxel_spacing({}, args.voxel_spacing, as_zyx=True)
+    else:
+        # get voxel spacing from the labels attributes
+        voxel_spacing = imgio.get_voxel_spacing(image_attrs, args.voxel_spacing, as_zyx=True)
+
+    if voxel_spacing is None:
+        if args.expansion_factor > 0:
+            expansion = args.expansion_factor
+        else:
+            expansion = 1.
+        voxel_spacing /= expansion
+    else:
+        image_ndim = len(image_data.shape)
+        voxel_spacing = np.array((1.,) * image_ndim)
 
     image = image_data[...]
 
@@ -69,19 +95,22 @@ def _extract_cell_region_properties(args):
         print('DAPI background:', bg_dapi)
         print('bleed_through channel background:', bg_img)
 
-    labels_stat = regionprops(labels, intensity_image=image)
-    df = pd.DataFrame(data=np.empty([len(labels_stat), 5]),
+    labels_stats = regionprops(labels, intensity_image=image, spacing=voxel_spacing)
+
+    df = pd.DataFrame(data=np.empty([len(labels_stats), 5]),
                       columns=['roi', 'area',
+                               'mean_intensity',
                                'weighted_centroid',
-                               'weighted_local_centroid', 'mean_intensity'],
+                               'weighted_local_centroid',
+                               ],
                       dtype=object)
 
-    for i in range(0, len(labels_stat)):
-        df.loc[i, 'roi'] = labels_stat[i].label
-        df.loc[i, 'area'] = labels_stat[i].area
-        df.loc[i, 'weighted_centroid'] = labels_stat[i].centroid_weighted
-        df.loc[i, 'weighted_local_centroid'] = labels_stat[i].centroid_weighted_local
-        df.loc[i, 'mean_intensity'] = labels_stat[i].intensity_mean
+    for i in range(0, len(labels_stats)):
+        df.loc[i, 'roi'] = labels_stats[i].label
+        df.loc[i, 'area'] = labels_stats[i].area
+        df.loc[i, 'mean_intensity'] = labels_stats[i].intensity_mean
+        df.loc[i, 'weighted_centroid'] = labels_stats[i].centroid_weighted
+        df.loc[i, 'weighted_local_centroid'] = labels_stats[i].centroid_weighted_local
 
     print("Writing", args.output)
     df.to_csv(args.output, index=False)
