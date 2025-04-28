@@ -5,14 +5,14 @@ set -euo pipefail
 function build() {
     local path="$1"
     shift
-    container=$(echo $path | cut -d '/' -f 1)
-    version=$(echo $path | cut -d '/' -f 2)
+    local container=$(echo $path | cut -d '/' -f 1)
+    local version=$(echo $path | cut -d '/' -f 2)
 
-    now="$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")"
-    repo_url="https://github.com/JaneliaSciComp/containers"
-    tag="ghcr.io/janeliascicomp/$container:$version"
+    local now="$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")"
+    local repo_url="https://github.com/JaneliaSciComp/containers"
+    local tag="ghcr.io/janeliascicomp/$container:$version"
 
-    CMD=(docker buildx build
+    local CMD=(docker buildx build
         --label org.opencontainers.image.source="$repo_url"
         --label org.opencontainers.image.created="$now"
         --tag ${tag}        
