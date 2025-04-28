@@ -28,7 +28,14 @@ echo $GITHUB_PACKAGE_TOKEN | docker login ghcr.io --username $USER --password-st
 ./build.sh stitching-spark/1.10.0
 ```
 
-The build script adds important metadata to the image, and then asks you if you want to push it to GCR. 
+The build script adds important metadata to the image.
+
+To also push the container to ghcr.io use:
+```bash
+./build.sh stitching-spark/1.10.0 --push
+```
+
+In addition you can also use any `docker buildx build` arguments
 
 4. Reference your image
 
