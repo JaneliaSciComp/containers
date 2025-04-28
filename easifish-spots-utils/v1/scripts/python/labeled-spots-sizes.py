@@ -96,7 +96,7 @@ def _get_spots_sizes(args):
         r = r.split('.')[0]
         spot = np.loadtxt(f, delimiter=',')
         n = len(spot)
-        
+
         # Convert from micrometer space to the voxel space of the segmented image
         rounded_spot = np.round(spot[:, :3]/voxel_spacing).astype('int')
         df = pd.DataFrame(np.zeros([len(label_ids), 1]), index=label_ids, columns=['count'])
