@@ -1,7 +1,6 @@
 """
 This is code contributed by Greg Fleishman to run Cellpose on a Dask cluster.
 """
-import cellpose.io
 import cellpose.models
 import dask.array as da
 import dask_image.ndmeasure as di_ndmeasure
@@ -142,7 +141,7 @@ def distributed_eval(
         'block_labels',
         image_shape,
         blocksize,
-        np.uint32,
+        np.uint64,
         data_store_name='zarr',
     )
 
@@ -179,6 +178,12 @@ def distributed_eval(
     )
 
     results = dask_client.gather(futures)
+    logger.info((
+        f'Finished segmenting: {len(block_indices)} {blocksize} blocks '
+        f'with overlap {blocksoverlap}'
+        ' - start label merge process'
+    ))
+
     faces, boxes_, box_ids_ = list(zip(*results))
     segmentation_da = da.from_zarr(labels_zarr)
 
@@ -188,21 +193,22 @@ def distributed_eval(
         return segmentation_da, []
 
     boxes = [box for sublist in boxes_ for box in sublist]
-    box_ids = np.concatenate(box_ids_)
+    box_ids = np.concatenate(box_ids_).astype(np.uint64)
+    logger.info(f'Relabel {box_ids.shape} blocks of type {box_ids.dtype}')
     new_labeling = determine_merge_relabeling(block_indices, faces, box_ids,
                                               label_dist_th=label_dist_th)
     new_labeling_path = f'{output_dir}/new_labeling.npy'
     np.save(new_labeling_path, new_labeling)
 
-    logger.info(f'Relabel blocks from {new_labeling_path}')
+    logger.info(f'Relabel {box_ids.shape} blocks from {new_labeling_path}')
     relabeled = da.map_blocks(
         lambda block: np.load(new_labeling_path)[block],
         segmentation_da,
-        dtype=np.uint32,
+        dtype=np.uint64,
         chunks=segmentation_da.chunks,
     )
     da.to_zarr(relabeled, f'{output_dir}/segmentation.zarr/remapped_block_labels', overwrite=True)
-    merged_boxes = merge_all_boxes(boxes, new_labeling[box_ids])
+    merged_boxes = merge_all_boxes(boxes, new_labeling[box_ids.astype(np.int32)])
     return relabeled, merged_boxes
 
 
@@ -569,17 +575,17 @@ def global_segment_ids(segmentation, block_index, nblocks):
     """
     Pack the block index into the segment IDs so they are
     globally unique. Everything gets remapped to [1..N] later.
-    A uint32 is split into 5 digits on left and 5 digits on right.
+    A label is split into 5 digits on left and 5 digits on right.
     This creates limits: 42950 maximum number of blocks and
     99999 maximum number of segments per block
     """
     logger.debug(f'Get global segment ids for block {block_index} - start at: {nblocks}')
     unique, unique_inverse = np.unique(segmentation, return_inverse=True)
     p = str(np.ravel_multi_index(block_index, nblocks))
-    remap = [np.uint32(p+str(x).zfill(5)) for x in unique]
+    remap = [int(p+str(x).zfill(5)) for x in unique]
     if unique[0] == 0:
-        remap[0] = np.uint32(0)  # 0 should just always be 0
-    segmentation = np.array(remap)[unique_inverse.reshape(segmentation.shape)]
+        remap[0] = 0  # 0 should just always be 0
+    segmentation = np.array(remap, dtype=np.uint64)[unique_inverse.reshape(segmentation.shape)]
     return segmentation, remap
 
 
@@ -601,18 +607,19 @@ def determine_merge_relabeling(block_indices, faces, used_labels,
     """Determine boundary segment mergers, remap all label IDs to merge
        and put all label IDs in range [1..N] for N global segments found"""
     faces = adjacent_faces(block_indices, faces)
-    label_range = np.max(used_labels)
+    logger.debug(f'Determine relabeling for {used_labels.shape} of type {used_labels.dtype}')
+    label_range = int(np.max(used_labels) + 1)
     label_groups = block_face_adjacency_graph(faces, label_range,
                                               label_dist_th=label_dist_th)
-    new_labeling = scipy.sparse.csgraph.connected_components(
-        label_groups, directed=False)[1]
+    new_labeling = scipy.sparse.csgraph.connected_components(label_groups,
+                                                             directed=False)[1]
     logger.debug(f'Connected labels: {new_labeling}')
     # XXX: new_labeling is returned as int32. Loses half range. Potentially a problem.
-    unused_labels = np.ones(label_range + 1, dtype=bool)
+    unused_labels = np.ones(label_range, dtype=np.uint64)
     unused_labels[used_labels] = 0
     new_labeling[unused_labels] = 0
     unique, unique_inverse = np.unique(new_labeling, return_inverse=True)
-    new_labeling = np.arange(len(unique), dtype=np.uint32)[unique_inverse]
+    new_labeling = np.arange(len(unique))[unique_inverse]
     return new_labeling
 
 
@@ -634,11 +641,12 @@ def adjacent_faces(block_indices, faces):
     return face_pairs
 
 
-def block_face_adjacency_graph(faces, nlabels, label_dist_th=1.0):
+def block_face_adjacency_graph(faces, labels_range, label_dist_th=1.0):
     """
     Shrink labels in face plane, then find which labels touch across the face boundary
     """
-    all_mappings = []
+    logger.info(f'Create adjacency graph for {labels_range} labels')
+    all_mappings = [np.empty((2, 0), dtype=np.uint64)]
     structure = scipy.ndimage.generate_binary_structure(3, 1)
     for face in faces:
         sl0 = tuple(slice(0, 1) if d == 2 else slice(None) for d in face.shape)
@@ -654,8 +662,7 @@ def block_face_adjacency_graph(faces, nlabels, label_dist_th=1.0):
     i, j = np.concatenate(all_mappings, axis=1)
     v = np.ones_like(i)
     csr_mat = scipy.sparse.coo_matrix((v, (i, j)),
-                                      shape=(nlabels+1,
-                                      nlabels+1)).tocsr()
+                                      shape=(labels_range,labels_range)).tocsr()
     logger.debug(f'Labels mapping as csr matrix {csr_mat}')
     return csr_mat
 
