@@ -141,7 +141,7 @@ def distributed_eval(
         'block_labels',
         image_shape,
         blocksize,
-        np.uint64,
+        np.uint32,
         data_store_name='zarr',
     )
 
@@ -193,7 +193,7 @@ def distributed_eval(
         return segmentation_da, []
 
     boxes = [box for sublist in boxes_ for box in sublist]
-    box_ids = np.concatenate(box_ids_).astype(np.uint64)
+    box_ids = np.concatenate(box_ids_).astype(np.uint32)
     logger.info(f'Relabel {box_ids.shape} blocks of type {box_ids.dtype}')
     new_labeling = determine_merge_relabeling(block_indices, faces, box_ids,
                                               label_dist_th=label_dist_th)
@@ -204,7 +204,7 @@ def distributed_eval(
     relabeled = da.map_blocks(
         lambda block: np.load(new_labeling_path)[block],
         segmentation_da,
-        dtype=np.uint64,
+        dtype=np.uint32,
         chunks=segmentation_da.chunks,
     )
     da.to_zarr(relabeled, f'{output_dir}/segmentation.zarr/remapped_block_labels', overwrite=True)
@@ -585,7 +585,7 @@ def global_segment_ids(segmentation, block_index, nblocks):
     remap = [int(p+str(x).zfill(5)) for x in unique]
     if unique[0] == 0:
         remap[0] = 0  # 0 should just always be 0
-    segmentation = np.array(remap, dtype=np.uint64)[unique_inverse.reshape(segmentation.shape)]
+    segmentation = np.array(remap, dtype=np.uint32)[unique_inverse.reshape(segmentation.shape)]
     return segmentation, remap
 
 
@@ -615,7 +615,7 @@ def determine_merge_relabeling(block_indices, faces, used_labels,
                                                              directed=False)[1]
     logger.debug(f'Connected labels: {new_labeling}')
     # XXX: new_labeling is returned as int32. Loses half range. Potentially a problem.
-    unused_labels = np.ones(label_range, dtype=np.uint64)
+    unused_labels = np.ones(label_range, dtype=np.uint32)
     unused_labels[used_labels] = 0
     new_labeling[unused_labels] = 0
     unique, unique_inverse = np.unique(new_labeling, return_inverse=True)
@@ -646,7 +646,7 @@ def block_face_adjacency_graph(faces, labels_range, label_dist_th=1.0):
     Shrink labels in face plane, then find which labels touch across the face boundary
     """
     logger.info(f'Create adjacency graph for {labels_range} labels')
-    all_mappings = [np.empty((2, 0), dtype=np.uint64)]
+    all_mappings = [np.empty((2, 0), dtype=np.uint32)]
     structure = scipy.ndimage.generate_binary_structure(3, 1)
     for face in faces:
         sl0 = tuple(slice(0, 1) if d == 2 else slice(None) for d in face.shape)
