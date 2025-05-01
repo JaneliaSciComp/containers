@@ -350,7 +350,7 @@ def _eval_model(block_index,
         f'Finished model eval for block: {block_index} '
         f'in {end_time-start_time}s '
     ))
-    return labels.astype(np.uint32)
+    return labels.astype(np.uint64)
 
 
 def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
@@ -384,12 +384,12 @@ def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
             '',
             shape,
             chunksize,
-            np.uint32,
+            np.uint64,
             data_store_name='zarr',
         )
         is_zarr = True
     else:
-        labels = da.empty(shape, dtype=np.uint32, chunks=chunksize)
+        labels = da.empty(shape, dtype=np.uint64, chunks=chunksize)
         is_zarr = False
     result_index = 0
     max_label = 0
@@ -419,7 +419,7 @@ def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
 
         block_labels_offsets = np.where(block_labels > 0,
                                         max_label,
-                                        np.uint32(0)).astype(np.uint32)
+                                        np.uint64(0)).astype(np.uint64)
         block_labels += block_labels_offsets
         # set the block in the dask array of labeled blocks
         labels[block_coords] = block_labels
