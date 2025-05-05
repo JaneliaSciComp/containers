@@ -350,7 +350,7 @@ def _eval_model(block_index,
         f'Finished model eval for block: {block_index} '
         f'in {end_time-start_time}s '
     ))
-    return labels.astype(np.uint64)
+    return labels.astype(np.uint32)
 
 
 def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
@@ -384,12 +384,12 @@ def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
             '',
             shape,
             chunksize,
-            np.uint64,
+            np.uint32,
             data_store_name='zarr',
         )
         is_zarr = True
     else:
-        labels = da.empty(shape, dtype=np.uint64, chunks=chunksize)
+        labels = da.empty(shape, dtype=np.uint32, chunks=chunksize)
         is_zarr = False
     result_index = 0
     max_label = 0
@@ -419,7 +419,7 @@ def _collect_labeled_blocks(segment_blocks_res, shape, chunksize,
 
         block_labels_offsets = np.where(block_labels > 0,
                                         max_label,
-                                        np.uint64(0)).astype(np.uint64)
+                                        np.uint32(0)).astype(np.uint32)
         block_labels += block_labels_offsets
         # set the block in the dask array of labeled blocks
         labels[block_coords] = block_labels
@@ -583,11 +583,14 @@ def _get_labels_connected_comps(label_groups, nlabels):
     # reformat label mappings as csr_matrix
     csr_label_groups = _mappings_as_csr(label_groups, nlabels+1)
 
-    connected_comps = scipy.sparse.csgraph.connected_components(
+    n_comps, connected_comps = scipy.sparse.csgraph.connected_components(
         csr_label_groups,
         directed=False,
-    )[1]
-    logger.debug(f'Connected labels: {connected_comps}')
+    )
+    logger.debug((
+        f'Connected components: {n_comps}, '
+        f'Connected labels: {connected_comps.shape} -> {connected_comps}'
+    ))
     return connected_comps
 
 
