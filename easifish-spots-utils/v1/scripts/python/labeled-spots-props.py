@@ -57,7 +57,7 @@ def _define_args():
     return args_parser
 
 
-def _extract_cell_region_properties(args):
+def _extract_spots_region_properties(args):
     image_data, image_attrs = imgio.open(args.image_container, args.image_dataset)
     labels, _ = imgio.open(args.labels_container, args.labels_dataset)
 
@@ -123,7 +123,7 @@ def _main():
     args = args_parser.parse_args()
 
     # run post processing
-    _extract_cell_region_properties(args)
+    _extract_spots_region_properties(args)
 
 
 if __name__ == '__main__':

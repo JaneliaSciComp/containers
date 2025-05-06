@@ -56,16 +56,16 @@ def _define_args():
     return args_parser
 
 
-def _get_spots_sizes(args):
+def _get_spots_counts(args):
 
-    labels, label_attrs = imgio.open(args.labels_container, args.labels_dataset)
-    image_ndim = len(labels.shape)
+    labels_zarr, labels_attrs = imgio.open(args.labels_container, args.labels_dataset)
+    image_ndim = len(labels_zarr.shape)
 
     if args.voxel_spacing:
         voxel_spacing = imgio.get_voxel_spacing({}, args.voxel_spacing)
     else:
         # get voxel spacing from the labels attributes
-        voxel_spacing = imgio.get_voxel_spacing(label_attrs, args.voxel_spacing)
+        voxel_spacing = imgio.get_voxel_spacing(labels_attrs, args.voxel_spacing)
 
         if voxel_spacing is None and args.image_container:
             # if the labels did not have voxel spacing, try to get it from the image
@@ -84,7 +84,8 @@ def _get_spots_sizes(args):
     print(f"Image voxel spacing: {voxel_spacing}")
 
     fx = sorted(glob(args.spots_pattern))
-    label_ids = np.unique(labels)
+    labels = labels_zarr[...]
+    label_ids = np.unique(labels[labels != 0])
     z, y, x = labels.shape
     print(f"Found {len(label_ids)} labels - labels shape: {labels.shape}")
 
@@ -98,7 +99,7 @@ def _get_spots_sizes(args):
         n = len(spot)
 
         # Convert from micrometer space to the voxel space of the segmented image
-        rounded_spot = np.round(spot[:, :3]/voxel_spacing).astype('int')
+        spots_coords = spot[:, :3]/voxel_spacing
         df = pd.DataFrame(np.zeros([len(label_ids), 1]), index=label_ids, columns=['count'])
 
         for i in range(0, n):
@@ -106,23 +107,38 @@ def _get_spots_sizes(args):
                 print('NaN found in {} line# {}'.format(f, i+1))
             else:
                 if np.any(spot[i,:3]<0):
-                    print(f'Point outside of fixed image found in {f} line# {i+1}', rounded_spot[i], spot[i])
+                    print(f'Point outside of fixed image found in {f} line# {i+1}', spots_coords[i], spot[i])
                 else:
                     try:
                         # if all non-rounded coord are valid values (none is NaN)
-                        coord = np.minimum(rounded_spot[i], [x, y, z])
-                        idx = labels[coord[2]-1, coord[1]-1, coord[0]-1]
-                        if idx > 0 and idx < len(label_ids):
+                        coord = np.minimum(spots_coords[i], [x, y, z])
+                        spot_label = _get_spot_label(labels, coord)
+                        if spot_label > 0 and spot_label <= len(label_ids):
                             # increment counter
-                            df.loc[idx, 'count'] = df.loc[idx, 'count'] + 1
+                            df.loc[spot_label, 'count'] = df.loc[spot_label, 'count'] + 1
                     except Exception as e:
                         print(f'Unexpected error in {f} line# {i+1}:', e)
                         traceback.print_exception(e)
 
         count.loc[:, r] = df.to_numpy()
 
+    filtered_count = count[(count.iloc[:, -3:] != 0).any(axis=1)]
+
     print("Writing", args.output)
-    count.to_csv(args.output)
+    filtered_count.to_csv(args.output, index_label='Label')
+
+
+def _get_spot_label(labels, xyz_coord):
+    zyx_coord = xyz_coord[::-1]
+    max_coord = np.round(zyx_coord).astype(int)
+    min_coord = np.maximum(np.floor(zyx_coord-1).astype(int), [0, 0, 0])
+    try:
+        crange = tuple([slice(start, stop) if start != stop else start 
+                        for start, stop in zip(min_coord, max_coord)])
+
+        return np.max(labels[crange])
+    except Exception as e:
+        print(f'Error retrieving label at {xyz_coord} using {crange}', e)
 
 
 def _main():
@@ -130,7 +146,7 @@ def _main():
     args = args_parser.parse_args()
 
     # run post processing
-    _get_spots_sizes(args)
+    _get_spots_counts(args)
 
 
 if __name__ == '__main__':
