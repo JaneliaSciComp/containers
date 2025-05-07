@@ -602,24 +602,26 @@ def block_faces(segmentation):
     return faces
 
 
-def determine_merge_relabeling(block_indices, faces, used_labels,
+def determine_merge_relabeling(block_indices, faces, labels,
                                label_dist_th=1.0):
     """Determine boundary segment mergers, remap all label IDs to merge
        and put all label IDs in range [1..N] for N global segments found"""
     faces = adjacent_faces(block_indices, faces)
-    logger.debug(f'Determine relabeling for {used_labels.shape} of type {used_labels.dtype}')
+    logger.debug(f'Determine relabeling for {labels.shape} of type {labels.dtype}')
+    used_labels = labels.astype(int)
     label_range = int(np.max(used_labels) + 1)
     label_groups = block_face_adjacency_graph(faces, label_range,
                                               label_dist_th=label_dist_th)
     new_labeling = scipy.sparse.csgraph.connected_components(label_groups,
                                                              directed=False)[1]
-    logger.debug(f'Connected labels: {new_labeling}')
+    logger.debug(f'Initial {len(new_labeling)} connected labels:, {new_labeling}')
     # XXX: new_labeling is returned as int32. Loses half range. Potentially a problem.
-    unused_labels = np.ones(label_range, dtype=np.uint32)
+    unused_labels = np.ones(label_range, dtype=bool)
     unused_labels[used_labels] = 0
     new_labeling[unused_labels] = 0
     unique, unique_inverse = np.unique(new_labeling, return_inverse=True)
     new_labeling = np.arange(len(unique))[unique_inverse]
+    logger.debug(f'Re-arranged {len(new_labeling)} connected labels:, {new_labeling}')
     return new_labeling
 
 

@@ -59,7 +59,7 @@ def _define_args():
 
 def _extract_spots_region_properties(args):
     image_data, image_attrs = imgio.open(args.image_container, args.image_dataset)
-    labels, _ = imgio.open(args.labels_container, args.labels_dataset)
+    labels_zarr, _ = imgio.open(args.labels_container, args.labels_dataset)
 
     if args.voxel_spacing:
         voxel_spacing = imgio.get_voxel_spacing({}, args.voxel_spacing, as_zyx=True)
@@ -95,6 +95,7 @@ def _extract_spots_region_properties(args):
         print('DAPI background:', bg_dapi)
         print('bleed_through channel background:', bg_img)
 
+    labels = labels_zarr[...]
     labels_stats = regionprops(labels, intensity_image=image, spacing=voxel_spacing)
 
     df = pd.DataFrame(data=np.empty([len(labels_stats), 5]),
