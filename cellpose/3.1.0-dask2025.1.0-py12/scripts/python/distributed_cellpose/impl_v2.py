@@ -244,7 +244,7 @@ def _segment_block(eval_method,
         block_data = pp_step[0](block_data, **pp_step[1])
 
     labels = eval_method(block_index, block_data)
-
+    unique_labels_with_overlaps = np.unique(labels)
     # remove overlaps
     logger.debug(f'Remove {blockoverlaps} overlaps for block: {block_index}:{block_coords}:{labels.shape}')
     new_block_coords = list(block_coords)
@@ -281,28 +281,37 @@ def _segment_block(eval_method,
     unique_labels = np.unique(labels)
     logger.info((
         f'Finished segmenting block {block_index} '
-        f'found {len(unique_labels)} unique labels after cropping'
-        f'in {end_time-start_time}s '
+        f'in {end_time-start_time}s, '
+        f'before cropping there were {len(unique_labels_with_overlaps)} labels, '
+        f'after cropping there are {len(unique_labels)} unique labels.'
     ))
 
-    if unique_labels[0] == 0:
-        old_labeling = unique_labels
-        new_labeling = np.arange(len(unique_labels)).astype(np.uint32)
+    if len(unique_labels) != len(unique_labels_with_overlaps):
+        # some labels were only in the overlaps so we need to relabel
+        if unique_labels[0] == 0:
+            old_labeling = unique_labels
+            new_labeling = np.arange(len(unique_labels)).astype(np.uint32)
+        else:
+            # no background label was present in this block
+            # so we need to add it
+            old_labeling = np.concatenate(([0], unique_labels))
+            new_labeling = np.arange(len(unique_labels) + 1).astype(np.uint32)
+
+        relabeled_block = skimage.util.map_array(labels, old_labeling, new_labeling)
+
+        max_label = np.max(relabeled_block)
+        logger.info((
+            f'Relabeled block {block_index} - {relabeled_block.shape} '
+            f'block max label: {max_label} '
+        ))
+        return block_index, tuple(new_block_coords), max_label, relabeled_block
     else:
-        # no background label was present in this block
-        # so we need to add it
-        old_labeling = np.concatenate(([0], unique_labels))
-        new_labeling = np.arange(len(unique_labels) + 1).astype(np.uint32)
-
-    relabeled_block = skimage.util.map_array(labels, old_labeling, new_labeling)
-
-    max_label = np.max(relabeled_block)
-    logger.info((
-        f'Relabeld block {block_index} - {relabeled_block.shape} '
-        f'block max label: {max_label} '
-    ))
-
-    return block_index, tuple(new_block_coords), max_label, relabeled_block
+        max_label = np.max(labels)
+        logger.info((
+            f'No need to relabel block {block_index} - {labels.shape} '
+            f'block max label: {max_label} '
+        ))
+        return block_index, tuple(new_block_coords), max_label, labels
 
 
 def _eval_model(block_index,
