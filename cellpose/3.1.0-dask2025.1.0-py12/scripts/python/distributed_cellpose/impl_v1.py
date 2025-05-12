@@ -194,7 +194,10 @@ def distributed_eval(
 
     boxes = [box for sublist in boxes_ for box in sublist]
     box_ids = np.concatenate(box_ids_).astype(np.uint32)
-    logger.info(f'Relabel {box_ids.shape} blocks of type {box_ids.dtype}')
+    logger.info((
+        f'Relabel {box_ids.shape} blocks of type {box_ids.dtype} - '
+        f'use {len(faces)} faces for merging labels'
+    ))
     new_labeling = determine_merge_relabeling(block_indices, faces, box_ids,
                                               label_dist_th=label_dist_th)
     new_labeling_path = f'{output_dir}/new_labeling.npy'
@@ -341,6 +344,8 @@ def process_block(
     logger.info((
         f'RUNNING BLOCK: {block_index}, '
         f'REGION: {crop}, '
+        f'blocksize: {blocksize}, '
+        f'blocksoverlap: {blocksoverlap}, '
         f'model_type: {model_type}, '
         f'do_3D: {do_3D}, '
         f'diameter: {diameter}, '
@@ -354,6 +359,7 @@ def process_block(
         f'cellprob_threshold: {cellprob_threshold}, '
         f'stitch_threshold: {stitch_threshold}, '
         f'gpu_batch_size: {gpu_batch_size}, '
+        f'eval_model_with_size: {eval_model_with_size}, '
     ))
     segmentation = read_preprocess_and_segment(
         image_container_path, 
@@ -445,7 +451,7 @@ def read_preprocess_and_segment(
         model = cellpose.models.CellposeModel(gpu=gpu,
                                               model_type=model_type,
                                               device=segmentation_device)
-    labels = model.eval(image_block, 
+    labels = model.eval(image_block,
                         channels=eval_channels,
                         diameter=diameter,
                         z_axis=z_axis,
@@ -459,11 +465,11 @@ def read_preprocess_and_segment(
                         stitch_threshold=stitch_threshold,
                         batch_size=gpu_batch_size,
                         )[0].astype(np.uint32)
-
     end_time = time.time()
-
+    unique_labels = np.unique(labels)
     logger.info((
         f'Finished model eval for block: {crop} '
+        f'found {len(unique_labels)} unique labels '
         f'in {end_time-start_time}s '
     ))
     return labels
@@ -566,11 +572,6 @@ def bounding_boxes_in_global_coordinates(segmentation, crop):
     return boxes
 
 
-def get_nblocks(shape, blocksize):
-    """Given a shape and blocksize determine the number of blocks per axis"""
-    return np.ceil(np.array(shape) / blocksize).astype(int)
-
-
 def global_segment_ids(segmentation, block_index, nblocks):
     """
     Pack the block index into the segment IDs so they are
@@ -579,8 +580,12 @@ def global_segment_ids(segmentation, block_index, nblocks):
     This creates limits: 42950 maximum number of blocks and
     99999 maximum number of segments per block
     """
-    logger.debug(f'Get global segment ids for block {block_index} - start at: {nblocks}')
     unique, unique_inverse = np.unique(segmentation, return_inverse=True)
+    logger.debug((
+        f'Block {block_index} '
+        f'- start at: {nblocks} '
+        f'- found {len(unique)} unique labels'
+    ))
     p = str(np.ravel_multi_index(block_index, nblocks))
     remap = [int(p+str(x).zfill(5)) for x in unique]
     if unique[0] == 0:
@@ -612,9 +617,13 @@ def determine_merge_relabeling(block_indices, faces, labels,
     label_range = int(np.max(used_labels) + 1)
     label_groups = block_face_adjacency_graph(faces, label_range,
                                               label_dist_th=label_dist_th)
+    logger.debug((
+        f'Build connected components for {label_groups.shape} label groups'
+        f'{label_groups}'
+    ))
     new_labeling = scipy.sparse.csgraph.connected_components(label_groups,
                                                              directed=False)[1]
-    logger.debug(f'Initial {len(new_labeling)} connected labels:, {new_labeling}')
+    logger.debug(f'Initial {new_labeling.shape} connected labels:, {new_labeling}')
     # XXX: new_labeling is returned as int32. Loses half range. Potentially a problem.
     unused_labels = np.ones(label_range, dtype=bool)
     unused_labels[used_labels] = 0

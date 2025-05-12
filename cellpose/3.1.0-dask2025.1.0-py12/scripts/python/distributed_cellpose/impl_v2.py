@@ -8,6 +8,7 @@ import functools
 import logging
 import numpy as np
 import scipy
+import skimage
 import time
 import traceback
 
@@ -52,8 +53,8 @@ def distributed_eval(
         iou_threshold=0,
         label_dist_th=1.0,
         persist_labeled_blocks=False,
-        test_mode=False,
         eval_model_with_size=True,
+        test_mode=False,
 ):
     """
     partition a 3-D volume into overlapping blocks and run cellpose segmentation
@@ -209,7 +210,10 @@ def _is_not_masked(mask, image_shape, blockslice):
 
 def _read_block_data(block_info, image_container_path, image_subpath=None):
     block_index, block_coords = block_info
-    logger.info(f'Get block: {block_index}, from: {block_coords}')
+    logger.info((
+        f'Get block: {block_index} at {block_coords} from '
+        f'{image_container_path}:{image_subpath} '
+    ))
     block_data, _ = read_utils.open(image_container_path, image_subpath,
                                     block_coords=block_coords)
     logger.info(f'Retrieved block {block_index} of shape {block_data.shape}')
@@ -226,7 +230,10 @@ def _segment_block(eval_method,
                    ):
     block_index, block_coords = block_info
     start_time = time.time()
-    logger.info(f'Segment block: {block_index}, {block_coords}')
+    logger.info((
+        f'Segment block: {block_index}, {block_coords} '
+        f'blocksize: {blocksize}, blockoverlaps: {blockoverlaps} '
+    ))
     block_shape = tuple([sl.stop-sl.start for sl in block_coords])
 
     block_data = _read_block_data(block_info, image_container_path,
@@ -238,10 +245,8 @@ def _segment_block(eval_method,
 
     labels = eval_method(block_index, block_data)
 
-    max_label = np.max(labels)
-
     # remove overlaps
-    logger.debug(f'Remove overlaps for block: {block_index}:{block_coords}:{labels.shape}')
+    logger.debug(f'Remove {blockoverlaps} overlaps for block: {block_index}:{block_coords}:{labels.shape}')
     new_block_coords = list(block_coords)
     for axis in range(block_data.ndim):
         # left side
@@ -271,11 +276,33 @@ def _segment_block(eval_method,
             new_block_coords[axis] = slice(a, a + blocksize[axis])
 
     end_time = time.time()
+    # after removing the overlaps some labels may be missing
+    # so we need to relabel the block again with contiguous labels
+    unique_labels = np.unique(labels)
     logger.info((
         f'Finished segmenting block {block_index} '
+        f'found {len(unique_labels)} unique labels after cropping'
         f'in {end_time-start_time}s '
     ))
-    return block_index, tuple(new_block_coords), max_label, labels
+
+    if unique_labels[0] == 0:
+        old_labeling = unique_labels
+        new_labeling = np.arange(len(unique_labels)).astype(np.uint32)
+    else:
+        # no background label was present in this block
+        # so we need to add it
+        old_labeling = np.concatenate(([0], unique_labels))
+        new_labeling = np.arange(len(unique_labels) + 1).astype(np.uint32)
+
+    relabeled_block = skimage.util.map_array(labels, old_labeling, new_labeling)
+
+    max_label = np.max(relabeled_block)
+    logger.info((
+        f'Relabeld block {block_index} - {relabeled_block.shape} '
+        f'block max label: {max_label} '
+    ))
+
+    return block_index, tuple(new_block_coords), max_label, relabeled_block
 
 
 def _eval_model(block_index,
@@ -303,6 +330,7 @@ def _eval_model(block_index,
     logger.info((
         f'Run model eval for block: {block_index}, '
         f'size: {block_data.shape}, '
+        f'model_type: {model_type}, '
         f'do_3D: {do_3D}, '
         f'diameter: {diameter}, '
         f'eval_channels: {eval_channels}, '
@@ -315,6 +343,7 @@ def _eval_model(block_index,
         f'cellprob_threshold: {cellprob_threshold}, '
         f'stitch_threshold: {stitch_threshold}, '
         f'gpu_batch_size: {gpu_batch_size}, '
+        f'eval_model_with_size: {eval_model_with_size}, '
     ))
 
     np.random.seed(block_index)
@@ -346,8 +375,10 @@ def _eval_model(block_index,
                         batch_size=gpu_batch_size,
                         )[0]
     end_time = time.time()
+    unique_labels = np.unique(labels)
     logger.info((
         f'Finished model eval for block: {block_index} '
+        f'found {len(unique_labels)} unique labels '
         f'in {end_time-start_time}s '
     ))
     return labels.astype(np.uint32)
@@ -443,7 +474,7 @@ def _link_labels(labels, blocks_index_and_coords, max_label, face_depth,
                                                 iou_threshold,
                                                 client)
     logger.debug((
-        f'Find connected components for label groups: '
+        f'Find connected components for {label_groups.shape} label groups: '
         f'max label: {max_label}, label groups: {label_groups} '
     ))
     return dask.delayed(_get_labels_connected_comps)(label_groups, max_label+1)
@@ -583,6 +614,10 @@ def _get_labels_connected_comps(label_groups, nlabels):
     # reformat label mappings as csr_matrix
     csr_label_groups = _mappings_as_csr(label_groups, nlabels+1)
 
+    logger.debug((
+        f'Build connected components for {csr_label_groups.shape} label groups'
+        f'{csr_label_groups}'
+    ))
     n_comps, connected_comps = scipy.sparse.csgraph.connected_components(
         csr_label_groups,
         directed=False,
