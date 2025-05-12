@@ -98,20 +98,14 @@ def _extract_spots_region_properties(args):
     labels = labels_zarr[...]
     labels_stats = regionprops(labels, intensity_image=image, spacing=voxel_spacing)
 
-    df = pd.DataFrame(data=np.empty([len(labels_stats), 5]),
-                      columns=['roi', 'area',
-                               'mean_intensity',
-                               'weighted_centroid',
-                               'weighted_local_centroid',
-                               ],
+    df = pd.DataFrame(data=np.empty([len(labels_stats), 3]),
+                      columns=['roi', 'mean_intensity', 'area'],
                       dtype=object)
 
     for i in range(0, len(labels_stats)):
         df.loc[i, 'roi'] = labels_stats[i].label
-        df.loc[i, 'area'] = labels_stats[i].area
         df.loc[i, 'mean_intensity'] = labels_stats[i].intensity_mean
-        df.loc[i, 'weighted_centroid'] = labels_stats[i].centroid_weighted
-        df.loc[i, 'weighted_local_centroid'] = labels_stats[i].centroid_weighted_local
+        df.loc[i, 'area'] = labels_stats[i].area
 
     print("Writing", args.output)
     df.to_csv(args.output, index=False)
