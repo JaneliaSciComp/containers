@@ -2,5 +2,8 @@ channels:
   - conda-forge
 dependencies:
   - python=3.12
+  - pandas=2.2.3
   - numpy>=1.26.0,<2
+  - scikit-image=0.25.2
+  - tifffile=2025.3.30
   - zarr=2.16.1
