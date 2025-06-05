@@ -15,7 +15,7 @@ def get_voxel_spacing(attrs, default_value=None, as_zyx=False):
             # return voxel spacing as [dx, dy, dz]
             voxel_spacing = np.array(scale_metadata[0].scale[2:][::-1])
         else:
-            voxel_spacing = None
+            voxel_spacing = np.array(default_value) if default_value is not None else None
     elif (attrs.get('downsamplingFactors')):
         voxel_spacing = (np.array(attrs['pixelResolution']) * 
                          np.array(attrs['downsamplingFactors']))
@@ -27,10 +27,8 @@ def get_voxel_spacing(attrs, default_value=None, as_zyx=False):
             voxel_spacing = np.array(pixel_resolution['dimensions'])
         else:
             raise ValueError(f'Unknown pixelResolution: {pixel_resolution} of type {type(pixel_resolution)}')
-    elif default_value is not None:
-        voxel_spacing = np.array(default_value)
     else:
-        voxel_spacing = None
+        voxel_spacing = np.array(default_value) if default_value is not None else None
 
     if voxel_spacing is not None:
         # flip the coordinates if as_zyx is True
@@ -106,6 +104,45 @@ def _get_data_store(data_path, data_store_name):
         return zarr.DirectoryStore(data_path)
 
 
+def _adjust_data_paths(data_path, data_subpath):
+    """
+    This methods adjusts the container and dataset paths such that
+    the container paths always contains a .attrs file
+    """
+    dataset_path_arg = data_subpath if data_subpath is not None else ''
+    dataset_comps = [c for c in dataset_path_arg.split('/') if c]
+    dataset_comps_index = 0
+
+    # Look for the first subpath that containes .zattrs file
+    while dataset_comps_index < len(dataset_comps):
+        container_subpath = '/'.join(dataset_comps[0:dataset_comps_index])
+        container_path = f'{data_path}/{container_subpath}'
+        if (os.path.exists(f'{container_path}/.zattrs') or
+            os.path.exists(f'{container_path}/attributes.json')):
+            break
+        dataset_comps_index = dataset_comps_index + 1
+
+    appended_container_path = '/'.join(dataset_comps[0:dataset_comps_index])
+    container_path = f'{data_path}/{appended_container_path}'
+    new_subpath = '/'.join(dataset_comps[dataset_comps_index:])
+
+    return container_path, new_subpath
+
+
+def _extract_numeric_comp(v):
+    match = re.match(r'^(\D*)(\d+)$', v)
+    if match:
+        return int(match.groups()[1])
+    else:
+        raise ValueError(f'Invalid component: {v}')
+
+
+def _is_ome_zarr(data_container_attrs: dict) -> bool:
+    # test if multiscales attribute exists - if it does assume OME-ZARR
+    multiscales = data_container_attrs.get('multiscales', [])
+    return not (multiscales == [])
+
+
 def _open_ome_zarr(data_container, data_container_attrs, data_subpath, block_coords=None):
     dataset_path_arg = data_subpath if data_subpath is not None else ''
     dataset_comps = [c for c in dataset_path_arg.split('/') if c]
@@ -132,41 +169,3 @@ def _open_ome_zarr(data_container, data_container_attrs, data_subpath, block_coo
     })
     return ba, data_container_attrs
 
-
-def _adjust_data_paths(data_path, data_subpath):
-    """
-    This methods adjusts the container and dataset paths such that
-    the container paths always contains a .attrs file
-    """
-    dataset_path_arg = data_subpath if data_subpath is not None else ''
-    dataset_comps = [c for c in dataset_path_arg.split('/') if c]
-    dataset_comps_index = 0
-
-    # Look for the first subpath that containes .zattrs file
-    while dataset_comps_index < len(dataset_comps):
-        container_subpath = '/'.join(dataset_comps[0:dataset_comps_index])
-        container_path = f'{data_path}/{container_subpath}'
-        if (os.path.exists(f'{container_path}/.zattrs') or
-            os.path.exists(f'{container_path}/attributes.json')):
-            break
-        dataset_comps_index = dataset_comps_index + 1
-
-    appended_container_path = '/'.join(dataset_comps[0:dataset_comps_index])
-    container_path = f'{data_path}/{appended_container_path}'
-    new_subpath = '/'.join(dataset_comps[dataset_comps_index:])
-
-    return container_path, new_subpath
-
-
-def _is_ome_zarr(data_container_attrs: dict) -> bool:
-    # test if multiscales attribute exists - if it does assume OME-ZARR
-    multiscales = data_container_attrs.get('multiscales', [])
-    return not (multiscales == [])
-
-
-def _extract_numeric_comp(v):
-    match = re.match(r'^(\D*)(\d+)$', v)
-    if match:
-        return int(match.groups()[1])
-    else:
-        raise ValueError(f'Invalid component: {v}')
