@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pandas=2.2.3
+  - numpy>=1.26.0,<2
+  - scikit-image=0.25.2
+  - tifffile=2025.3.30
+  - zarr=2.16.1
+  - pip:
+    - ome-zarr-models==0.1.6
