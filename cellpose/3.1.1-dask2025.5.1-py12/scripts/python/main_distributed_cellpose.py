@@ -51,6 +51,10 @@ def _define_args():
                              dest='input_subpath',
                              type=str,
                              help = "input subpath")
+    args_parser.add_argument('--input-subpath-pattern',
+                             dest='input_subpath_pattern',
+                             type=str,
+                             help = "input subpath pattern")
 
     args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
                              dest='voxel_spacing',
@@ -214,7 +218,8 @@ def _run_segmentation(args):
         # use a local asynchronous client
         dask_client = Client(LocalCluster())
 
-    image_data, image_attrs = read_utils.open(args.input, args.input_subpath)
+    image_data, image_attrs = read_utils.open(args.input, args.input_subpath,
+                                              subpath_pattern=args.input_subpath_pattern)
     image_ndim = image_data.ndim
     image_shape = image_data.shape
     image_dtype = image_data.dtype

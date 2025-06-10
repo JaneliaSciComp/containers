@@ -14,6 +14,8 @@ from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_d
 from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_iou_merge)
 from distributed_cellpose.preprocessing import get_preprocessing_steps
 
+from io_utils.zarr_utils import prepare_attrs
+
 from utils.configure_logging import (configure_logging)
 from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
 
@@ -49,6 +51,10 @@ def _define_args():
                              dest='input_subpath',
                              type=str,
                              help = "input subpath")
+    args_parser.add_argument('--input-subpath-pattern',
+                             dest='input_subpath_pattern',
+                             type=str,
+                             help = "input subpath pattern")
 
     args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
                              dest='voxel_spacing',
@@ -139,6 +145,7 @@ def _define_args():
     distributed_args.add_argument('--model',
                                   dest='segmentation_model',
                                   type=str,
+                                  default='cyto3',
                                   help='A builtin segmentation model or a model added to the cellpose models directory')
     distributed_args.add_argument('--iou-threshold', '--iou_threshold',
                                   dest='iou_threshold',
@@ -212,7 +219,8 @@ def _run_segmentation(args):
         dask_client = Client(LocalCluster())
 
 
-    image_data, image_attrs = read_utils.open(args.input, args.input_subpath)
+    image_data, image_attrs = read_utils.open(args.input, args.input_subpath,
+                                              subpath_pattern=args.input_subpath_pattern)
     image_ndim = image_data.ndim
     image_shape = image_data.shape
     image_dtype = image_data.dtype
@@ -314,15 +322,18 @@ def _run_segmentation(args):
                 gpu_device=args.gpu_device,
             )
 
+            labels_attributes = prepare_attrs(output_subpath,
+                                              image_attrs,
+                                              pixelResolution=image_attrs.get('pixelResolution'),
+                                              downsamplingFactors=image_attrs.get('downsamplingFactors'))
             persisted_labels = write_utils.save(
                 output_labels, args.output, output_subpath,
                 blocksize=output_blocks,
-                resolution=image_attrs.get('pixelResolution'),
-                scale_factors=image_attrs.get('downsamplingFactors'),
+                container_attributes=labels_attributes,
             )
 
             if persisted_labels is not None:
-                r = dask_client.compute(persisted_labels).result()
+                _ = dask_client.compute(persisted_labels).result()
                 logger.info('DONE!')
             else:
                 logger.warning('No segmentation labels were generated')

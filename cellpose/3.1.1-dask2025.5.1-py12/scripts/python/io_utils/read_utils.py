@@ -41,7 +41,7 @@ def get_voxel_spacing(attrs, default_value=None, as_zyx=True):
         return None
 
 
-def open(container_path, subpath, block_coords=None):
+def open(container_path, subpath, subpath_pattern=None, block_coords=None):
     real_container_path = os.path.realpath(container_path)
     path_comps = os.path.splitext(container_path)
 
@@ -65,7 +65,8 @@ def open(container_path, subpath, block_coords=None):
         ))
         return zarr_utils.open(container_path, subpath,
                                block_coords=block_coords,
-                               data_store_name=container_store)
+                               data_store_name=container_store,
+                               data_subpath_pattern=subpath_pattern,)
     else:
         logger.warning(f'Cannot handle {container_path} ({real_container_path}): {subpath}')
         return None, {}
