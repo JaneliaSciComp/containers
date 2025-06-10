@@ -3,7 +3,8 @@ import os
 import re
 import zarr
 
-from ome_zarr_models.v04.image import ImageAttrs
+from ome_zarr_models.v04.image import (ImageAttrs, Multiscale,
+                                       Dataset)
 
 
 logger = logging.getLogger(__name__)
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 def create_dataset(data_path, data_subpath, shape, chunks, dtype,
                    data=None, data_store_name=None,
+                   container_attributes={},
                    **kwargs):
     try:
         data_store = _get_data_store(data_path, data_store_name)
@@ -20,10 +22,33 @@ def create_dataset(data_path, data_subpath, shape, chunks, dtype,
                 f'data store {data_store}'
             ))
             root_group = zarr.open_group(store=data_store, mode='a')
-            dataset = root_group.require_dataset(
-                data_subpath,
-                shape=shape,
-                chunks=chunks,
+            if _is_ome_zarr(container_attributes):
+                root_group.attributes = container_attributes
+                ome_metadata = ImageAttrs(**container_attributes)
+                datagroup_subpath, dataset_subpath = _get_dataset_subpath(data_subpath,
+                                                                          ome_metadata.multiscales[0])
+                if datagroup_subpath:
+                    data_group = root_group.require_group(datagroup_subpath)
+                else:
+                    data_group = root_group
+                data_group.attrs.update(container_attributes)
+                # assume shape and chunks have the same length
+                if len(shape) == len(ome_metadata.multiscales[0].axes):
+                    dataset_shape = shape
+                    dataset_chunks = chunks
+                else:
+                    missing_dims = len(ome_metadata.multiscales[0].axes)-len(shape)
+                    dataset_shape = ((1,) * missing_dims + shape)
+                    dataset_chunks = ((1,) * missing_dims + chunks)
+            else:
+                data_group = root_group
+                dataset_subpath = data_subpath
+                dataset_shape = shape
+                dataset_chunks = chunks
+            dataset = data_group.require_dataset(
+                dataset_subpath,
+                shape=dataset_shape,
+                chunks=dataset_chunks,
                 dtype=dtype,
                 data=data)
             # set additional attributes
@@ -68,6 +93,39 @@ def open(data_path, data_subpath, data_store_name=None,
         raise e
 
 
+def prepare_attrs(dataset_path, src_image_attributes:dict, **additional_attrs) -> dict:
+    if not _is_ome_zarr(src_image_attributes):
+        return {k: v for k, v in additional_attrs.items()}
+    else:
+        dataset_path_comps = [c for c in dataset_path.split('/') if c]
+        dataset_scale_subpath = dataset_path_comps.pop()
+
+        src_ome_metadata = ImageAttrs(**src_image_attributes)
+        src_multiscale = src_ome_metadata.multiscales[0]
+
+        if src_image_attributes.get('coordinateTransformations'):
+            src_scales = src_image_attributes['coordinateTransformations'][0].scale
+        else:
+            src_scales = (1,) * len(src_multiscale.axes)
+        if src_image_attributes.get('coordinateTransformations'):
+            src_translations = src_image_attributes['coordinateTransformations'][1].translation
+        else:
+            src_translations = None
+
+        dataset = Dataset.build(path=dataset_scale_subpath, scale=src_scales, translation=src_translations)
+        ome_metadata = ImageAttrs(
+            multiscales=[
+                Multiscale(
+                    axes=src_multiscale.axes,
+                    datasets=(dataset,),
+                )
+            ],
+        )
+        ome_attrs = ome_metadata.dict()
+        ome_attrs.update(additional_attrs)
+        return ome_attrs
+
+
 def _adjust_data_paths(data_path, data_subpath):
     """
     This methods adjusts the container and dataset paths such that
@@ -108,7 +166,10 @@ def _get_data_store(data_path, data_store_name):
         return zarr.DirectoryStore(data_path)
 
 
-def _is_ome_zarr(data_container_attrs: dict) -> bool:
+def _is_ome_zarr(data_container_attrs: dict | None) -> bool:
+    if data_container_attrs is None:
+        return False
+
     # test if multiscales attribute exists - if it does assume OME-ZARR
     multiscales = data_container_attrs.get('multiscales', [])
     return not (multiscales == [])
@@ -118,10 +179,12 @@ def _open_ome_zarr(data_container, data_container_attrs, data_subpath, block_coo
     dataset_path_arg = data_subpath if data_subpath is not None else ''
     dataset_comps = [c for c in dataset_path_arg.split('/') if c]
     if len(dataset_comps) > 0:
+        logger.debug(f'Extract scale from {dataset_comps[-1]}')
         scale = _extract_numeric_comp(dataset_comps[-1])
     else:
         scale = 0
     if len(dataset_comps) > 1:
+        logger.debug(f'Extract channel from {dataset_comps[-1]}')
         ch = _extract_numeric_comp(dataset_comps[-2])
     else:
         ch = 0
@@ -138,6 +201,7 @@ def _open_ome_zarr(data_container, data_container_attrs, data_subpath, block_coo
     else:
         ba = _get_array_selector(multiscale_metadata, timeindex, ch)(a)
     data_container_attrs.update({
+        'dataset_path': dataset_metadata.path,
         'coordinateTransformations': dataset_metadata.coordinateTransformations
     })
     return ba, data_container_attrs
@@ -146,7 +210,7 @@ def _open_ome_zarr(data_container, data_container_attrs, data_subpath, block_coo
 def _get_array_selector(metadata, timepoint, ch):
     axes = metadata.axes
     has_time_dimension = any(a.type == 'time' for a in axes)
-    has_channel_dimension = any(a.type == 'time' for a in axes)
+    has_channel_dimension = any(a.type == 'channel' for a in axes)
 
     def _selector(a):
         if has_time_dimension:
@@ -159,3 +223,16 @@ def _get_array_selector(metadata, timepoint, ch):
             return sa
 
     return _selector
+
+
+def _get_dataset_subpath(requested_subpath:str, multiscale: Multiscale, dataset_index=0) -> (str, str):
+    dataset = multiscale.datasets[dataset_index]
+    requested_subpath_comps = [c for c in requested_subpath.split('/') if c]
+
+    if len(requested_subpath_comps) > 0:
+        # drop the scale component
+        requested_subpath_comps.pop()
+    
+    dataset_subpath = dataset.path
+
+    return '/'.join(requested_subpath_comps), dataset_subpath

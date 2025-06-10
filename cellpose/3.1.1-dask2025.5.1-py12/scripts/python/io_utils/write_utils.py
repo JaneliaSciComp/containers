@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 def save(data, container_path, subpath,
          blocksize=None,
-         resolution=None,
-         scale_factors=None,
+         container_attributes={},
 ):
     """
     Persist distributed data - typically a dask array to the specified
@@ -45,19 +44,14 @@ def save(data, container_path, subpath,
         persist_block = functools.partial(_save_block_to_tiff,
                                           output_dir=output_dir,
                                           output_name=output_name,
-                                          resolution=resolution,
-                                          ext=container_ext)
+                                          ext=container_ext,
+                                          container_attributes=container_attributes)
     elif (container_ext == '.n5' or container_ext == '') and subpath and subpath != '.':
         logger.info((
             f'Persist {data.shape} ({data.dtype}) data '
             f'as N5 to {container_path} '
             f'({real_container_path}):{subpath} '
         ))
-        attrs = {}
-        if resolution is not None:
-            attrs['pixelResolution'] = resolution
-        if scale_factors is not None:
-            attrs['downsamplingFactors'] = scale_factors
         data_store = 'n5'
         zarr_data = zarr_utils.create_dataset(
             container_path,
@@ -66,7 +60,7 @@ def save(data, container_path, subpath,
             blocksize,
             data.dtype,
             data_store_name='n5',
-            **attrs,
+            **container_attributes,
         )
         persist_block = functools.partial(_save_block_to_zarr,
                                           zarr_output=zarr_data)
@@ -75,11 +69,6 @@ def save(data, container_path, subpath,
             f'Persist data as zarr {container_path} '
             f'({real_container_path}):{subpath} '
         ))
-        attrs = {}
-        if resolution is not None:
-            attrs['pixelResolution'] = resolution
-        if scale_factors is not None:
-            attrs['downsamplingFactors'] = scale_factors
         data_store = 'zarr'
         zarr_data = zarr_utils.create_dataset(
             container_path,
@@ -88,7 +77,8 @@ def save(data, container_path, subpath,
             blocksize,
             data.dtype,
             data_store_name=data_store,
-            **attrs,
+            container_attributes=container_attributes,
+            **container_attributes,
         )
         persist_block = functools.partial(_save_block_to_zarr,
                                           zarr_output=zarr_data)
@@ -161,8 +151,8 @@ def _save_block_to_nrrd(block, output_dir=None, output_name=None,
 
 def _save_block_to_tiff(block, output_dir=None, output_name=None,
                         block_info=None,
-                        resolution=None,
                         ext='.tif',
+                        container_attributes={}
                         ):
     res_shape = tuple([1 for r in range(0, block.ndim)])
     if block_info is not None:
@@ -189,8 +179,7 @@ def _save_block_to_tiff(block, output_dir=None, output_name=None,
         tiff_metadata = {
             'axes': 'ZYX',
         }
-        if resolution is not None:
-            tiff_metadata['resolution'] = resolution
+        tiff_metadata.update(container_attributes)
 
         tifffile.imwrite(full_filename, block[block_coords],
                          metadata=tiff_metadata)
@@ -206,6 +195,13 @@ def _save_block_to_zarr(block, zarr_output=None, block_info=None):
         output_coords = _block_coords_from_block_info(block_info, 0)
         block_coords = tuple([slice(s.start-s.start, s.stop-s.start)
                               for s in output_coords])
+        if len(block_coords) < len(zarr_output.shape):
+            missing_dims = len(zarr_output.shape) - len(block_coords)
+            block_shape = (1,) * missing_dims + block.shape
+            block_coords = (slice(0, 1),) * missing_dims + block_coords
+            output_coords = (slice(0, 1),) * missing_dims + output_coords
+            block = block.reshape(block_shape)
+
         logger.info((
             f'Write block {block.shape} '
             f'output_coords: {output_coords} '

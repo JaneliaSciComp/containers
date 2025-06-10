@@ -14,6 +14,8 @@ from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_d
 from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_iou_merge)
 from distributed_cellpose.preprocessing import get_preprocessing_steps
 
+from io_utils.zarr_utils import prepare_attrs
+
 from utils.configure_logging import (configure_logging)
 from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
 
@@ -139,7 +141,7 @@ def _define_args():
     distributed_args.add_argument('--model',
                                   dest='segmentation_model',
                                   type=str,
-                                  default='cyto',
+                                  default='cyto3',
                                   help='A builtin segmentation model or a model added to the cellpose models directory')
     distributed_args.add_argument('--iou-threshold', '--iou_threshold',
                                   dest='iou_threshold',
@@ -217,7 +219,6 @@ def _run_segmentation(args):
     image_shape = image_data.shape
     image_dtype = image_data.dtype
     image_data = None
-    pprint(image_attrs) # !!!!!!!
 
     if args.voxel_spacing:
         voxel_spacing = read_utils.get_voxel_spacing({}, args.voxel_spacing)
@@ -323,15 +324,18 @@ def _run_segmentation(args):
                 test_mode=args.test_mode,
             )
 
+            labels_attributes = prepare_attrs(output_subpath,
+                                              image_attrs,
+                                              pixelResolution=image_attrs.get('pixelResolution'),
+                                              downsamplingFactors=image_attrs.get('downsamplingFactors'))
             persisted_labels = write_utils.save(
                 output_labels, args.output, output_subpath,
                 blocksize=output_blocks,
-                resolution=image_attrs.get('pixelResolution'),
-                scale_factors=image_attrs.get('downsamplingFactors'),
+                container_attributes=labels_attributes,
             )
 
             if persisted_labels is not None:
-                r = dask_client.compute(persisted_labels).result()
+                _ = dask_client.compute(persisted_labels).result()
                 logger.info('DONE!')
             else:
                 logger.warning('No segmentation labels were generated')

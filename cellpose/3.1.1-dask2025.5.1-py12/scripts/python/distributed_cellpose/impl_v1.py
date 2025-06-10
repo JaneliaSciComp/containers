@@ -135,6 +135,7 @@ def distributed_eval(
     )
 
     segmentation_zarr_container = f'{output_dir}/segmentation.zarr'
+
     labels_zarr = zarr_utils.create_dataset(
         segmentation_zarr_container,
         'block_labels',
