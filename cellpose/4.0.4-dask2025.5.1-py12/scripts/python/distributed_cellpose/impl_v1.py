@@ -496,8 +496,6 @@ def read_preprocess_and_segment(
         "tile_norm_smooth3D": normalize_tile_norm_smooth3D,
         "invert": normalize_invert,
     }
-    # transposed_block = image_block.transpose(1,2,3,0)
-    print('!!!!!! BLOCK: ', image_block.shape, flush=True)
     labels = model.eval(image_block,
                         diameter=diameter,
                         z_axis=z_axis,
@@ -513,7 +511,6 @@ def read_preprocess_and_segment(
                         flow3D_smooth=1,
                         )[0].astype(np.uint32)
     end_time = time.time()
-    print('!!!!!! LABELS RESULT: ', labels.shape, flush=True)
     unique_labels = np.unique(labels)
     logger.info((
         f'Finished model eval for block: {crop} '
