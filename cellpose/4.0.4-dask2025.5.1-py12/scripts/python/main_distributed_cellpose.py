@@ -226,6 +226,7 @@ def _run_segmentation(args):
     image_dtype = image_data.dtype
     image_data = None
 
+
     if args.voxel_spacing:
         voxel_spacing = read_utils.get_voxel_spacing({}, args.voxel_spacing)
     else:
@@ -259,6 +260,8 @@ def _run_segmentation(args):
                                         for di,d in enumerate(zyx_process_size)])
         else:
             process_blocksize = output_blocks
+
+        print('!!!!! PROCESS BLOCK SIZE: ', process_blocksize, " !!!! SHAPE ", image_shape)
 
         if (args.blocks_overlaps is not None and
             len(args.blocks_overlaps) > 0):
@@ -298,6 +301,7 @@ def _run_segmentation(args):
             output_labels, _ = distributed_eval_method(
                 args.input,
                 args.input_subpath,
+                args.input_subpath_pattern,
                 image_shape,
                 args.segmentation_model,
                 process_blocksize,

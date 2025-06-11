@@ -264,13 +264,13 @@ def _get_array_selector(axes, timeindex, ch):
     for a in axes:
         if a.type == 'time':
             if timeindex is not None:
-                selector.append(slice(timeindex,timeindex+1))
+                selector.append(timeindex)
                 selection_exists = True
             else:
                 selector.append(slice(None, None))
         elif a.type == 'channel':
             if ch is not None:
-                selector.append(slice(ch, ch+1))
+                selector.append(ch)
                 selection_exists = True
             else:
                 selector.append(slice(None, None))

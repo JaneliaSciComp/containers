@@ -12,6 +12,7 @@ import time
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
 
+from cellpose import transforms
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 def distributed_eval(
         image_container_path,
         image_subpath,
+        image_subpath_pattern,
         image_shape,
         model_type,
         blocksize,
@@ -27,7 +29,7 @@ def distributed_eval(
         blocksoverlap=(),
         mask=None,
         preprocessing_steps=[],
-        diameter=30,
+        diameter=None,
         do_3D=True,
         z_axis=0,
         channel_axis=None,
@@ -61,6 +63,10 @@ def distributed_eval(
 
     image_subpath : string
         Dataset path relative to path.
+
+    image_subpath_pattern : string
+        Dataset components pattern - a string like 'tcs'
+        that tells what each subpath component represents
 
     image_shape : tuple
         Image shape in voxels. E.g. (512, 1024, 1024)
@@ -111,32 +117,39 @@ def distributed_eval(
         ID is the first tuple in the list, the largest segment ID is the last
         tuple in the list.
     """
-    if diameter <= 0:
-        # always specify the diameter
-        diameter = 30
+    print('!!!!! IMAGE SUBPATH: ', image_subpath)
+    print(f'!!!! IMAGE SHAPE: {image_shape} overlap {blocksoverlap} blocksize: {blocksize}', flush=True)
     image_ndim = len(image_shape)
     # check blocksoverlap
-    if blocksoverlap is None:
+    if blocksoverlap is None or blocksoverlap == ():
         blocksoverlap = [int(s * 0.1) for s in blocksize]
     elif isinstance(blocksoverlap, (int, float)):
         blocksoverlap = [int(blocksoverlap)] * image_ndim
-    elif isinstance(blocksoverlap, tuple):
-        if len(blocksoverlap) < image_ndim:
-            blocksoverlap = blocksoverlap + (int(diameter*2),) * (image_ndim-len(blocksoverlap))
     else:
-        raise ValueError(f'Invalid blocksoverlap {blocksoverlap} of type {type(blocksoverlap)} - expected tuple')
+        raise ValueError((
+            f'Invalid blocksoverlap {blocksoverlap} of type {type(blocksoverlap)} '
+            f'- expected tuple with same size as image dimensions: {image_ndim}'
+        ))
 
     blocksoverlap_arr = np.array(blocksoverlap, dtype=int)
+    print(f' !!!!!! BLOCK OVERLAPS: {blocksoverlap_arr}')
     block_indices, block_crops = get_block_crops(
         image_shape, blocksize, blocksoverlap_arr, mask,
     )
 
+    segmentation_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
+    segmentation_block = [s for i, s in enumerate(blocksize) if i != channel_axis]
     segmentation_zarr_container = f'{output_dir}/segmentation.zarr'
+    logger.info((
+        f'Create temporary {segmentation_shape} labels '
+        f'at {segmentation_zarr_container} with {segmentation_block} chunks'
+    ))
+
     labels_zarr = zarr_utils.create_dataset(
         segmentation_zarr_container,
         'block_labels',
-        image_shape,
-        blocksize,
+        segmentation_shape,
+        segmentation_block,
         np.uint32,
         data_store_name='zarr',
     )
@@ -148,6 +161,7 @@ def distributed_eval(
         block_crops,
         image_container_path=image_container_path,
         image_subpath=image_subpath,
+        image_subpath_pattern=image_subpath_pattern,
         image_shape=image_shape,
         blocksize=blocksize,
         blocksoverlap=blocksoverlap_arr,
@@ -217,13 +231,14 @@ def process_block(
     crop,
     image_container_path,
     image_subpath,
+    image_subpath_pattern,
     image_shape,
     blocksize,
     blocksoverlap,
     labels_output_zarr,
     preprocessing_steps=[],
     model_type=None,
-    diameter=30,
+    diameter=None,
     min_size=15,
     anisotropy=None,
     do_3D=True,
@@ -362,7 +377,8 @@ def process_block(
     ))
     segmentation = read_preprocess_and_segment(
         image_container_path, 
-        image_subpath, 
+        image_subpath,
+        image_subpath_pattern, 
         crop, 
         preprocessing_steps,
         model_type=model_type,
@@ -388,17 +404,24 @@ def process_block(
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
     )
-    print('!!!!!!!! SEGMENTATION 1 ', segmentation.shape)
-    segmentation, crop = remove_overlaps(segmentation, crop, blocksoverlap, blocksize)
+    # labels are single channel so if the input was multichannel remove the channel coords
+    labels_image_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
+    labels_block_index = [b for i, b in enumerate(block_index) if i != channel_axis]
+    labels_coords = [c for i, c in enumerate(crop) if i != channel_axis]
+    labels_overlaps = [o for i, o in enumerate(blocksoverlap) if i != channel_axis]
+    labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    print('!!!!!!!! SEGMENTATION 1 ', segmentation.shape, labels_coords, labels_overlaps, labels_blocksize)
+    segmentation, labels_coords = remove_overlaps(segmentation, labels_coords, labels_overlaps, labels_blocksize)
     print('!!!!!!!! SEGMENTATION 2 ', segmentation.shape)
-    boxes = bounding_boxes_in_global_coordinates(segmentation, crop)
+    boxes = bounding_boxes_in_global_coordinates(segmentation, labels_coords)
     print('!!!!!!!! BOXES ', len(boxes))
-    nblocks = get_nblocks(image_shape, blocksize)
-    segmentation, remap = global_segment_ids(segmentation, block_index, nblocks)
+    nblocks = get_nblocks(labels_image_shape, labels_blocksize)
+    segmentation, remap = global_segment_ids(segmentation, labels_block_index, nblocks)
     if remap[0] == 0:
         remap = remap[1:]
 
-    labels_output_zarr[tuple(crop)] = segmentation
+    print('!!!!!!!! SEGMENTATION ', crop, segmentation.shape, )
+    labels_output_zarr[tuple(labels_coords)] = segmentation
 
     if test_mode:
         return segmentation, boxes, remap
@@ -411,6 +434,7 @@ def process_block(
 def read_preprocess_and_segment(
     image_container_path,
     image_subpath,
+    image_subpath_pattern,
     crop,
     preprocessing_steps,
     # model_kwargs,
@@ -418,7 +442,7 @@ def read_preprocess_and_segment(
     use_gpu=False,
     gpu_device=None,
     # eval_kwargs
-    diameter=30,
+    diameter=None,
     z_axis=0,
     channel_axis=None,
     do_3D=True,
@@ -444,6 +468,7 @@ def read_preprocess_and_segment(
         f'{image_container_path}:{image_subpath} '
     ))
     image_block, _ = read_utils.open(image_container_path, image_subpath,
+                                     subpath_pattern=image_subpath_pattern,
                                      block_coords=crop)
 
     start_time = time.time()
@@ -451,6 +476,8 @@ def read_preprocess_and_segment(
     for pp_step in preprocessing_steps:
         logger.debug(f'Apply preprocessing step: {pp_step}')
         image_block = pp_step[0](image_block, **pp_step[1])
+
+    image_block = transforms.normalize_img(image_block, axis=channel_axis)
 
     segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
                                                              device=gpu_device)
@@ -469,6 +496,8 @@ def read_preprocess_and_segment(
         "tile_norm_smooth3D": normalize_tile_norm_smooth3D,
         "invert": normalize_invert,
     }
+    # transposed_block = image_block.transpose(1,2,3,0)
+    print('!!!!!! BLOCK: ', image_block.shape, flush=True)
     labels = model.eval(image_block,
                         diameter=diameter,
                         z_axis=z_axis,
@@ -484,6 +513,7 @@ def read_preprocess_and_segment(
                         flow3D_smooth=1,
                         )[0].astype(np.uint32)
     end_time = time.time()
+    print('!!!!!! LABELS RESULT: ', labels.shape, flush=True)
     unique_labels = np.unique(labels)
     logger.info((
         f'Finished model eval for block: {crop} '
