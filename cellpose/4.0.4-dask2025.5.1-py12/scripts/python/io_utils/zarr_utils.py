@@ -100,30 +100,31 @@ def open(data_path, data_subpath, data_store_name=None,
         raise e
 
 
-def prepare_attrs(dataset_path, src_image_attributes:dict, **additional_attrs) -> dict:
-    if not _is_ome_zarr(src_image_attributes):
+def prepare_attrs(dataset_path, # src_image_attributes:dict,
+                  axes:list | None = None,
+                  coordinateTransformations:list | None = None,
+                  **additional_attrs) -> dict:
+    if (coordinateTransformations is None or coordinateTransformations == []
+        or axes is None):
+        # coordinateTransformation is None or [] or no axes were provided
         return {k: v for k, v in additional_attrs.items()}
     else:
         dataset_path_comps = [c for c in dataset_path.split('/') if c]
+        # take the last component of the dataset path to be the scale path
         dataset_scale_subpath = dataset_path_comps.pop()
 
-        src_ome_metadata = ImageAttrs(**src_image_attributes)
-        src_multiscale = src_ome_metadata.multiscales[0]
+        scales, translations = (1,) * len(axes), None
+        for t in coordinateTransformations:
+            if t.type == 'scale':
+                scales = t.scale
+            elif t.type == 'translation':
+                translations = t.translation
 
-        if src_image_attributes.get('coordinateTransformations'):
-            src_scales = src_image_attributes['coordinateTransformations'][0].scale
-        else:
-            src_scales = (1,) * len(src_multiscale.axes)
-        if src_image_attributes.get('coordinateTransformations'):
-            src_translations = src_image_attributes['coordinateTransformations'][1].translation
-        else:
-            src_translations = None
-
-        dataset = Dataset.build(path=dataset_scale_subpath, scale=src_scales, translation=src_translations)
+        dataset = Dataset.build(path=dataset_scale_subpath, scale=scales, translation=translations)
         ome_metadata = ImageAttrs(
             multiscales=[
                 Multiscale(
-                    axes=src_multiscale.axes,
+                    axes=axes,
                     datasets=(dataset,),
                 )
             ],

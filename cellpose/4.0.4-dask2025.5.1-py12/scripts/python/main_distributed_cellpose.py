@@ -5,9 +5,6 @@ import traceback
 import io_utils.read_utils as read_utils
 import io_utils.write_utils as write_utils
 
-from cellpose import version_str as cellpose_version
-from cellpose.models import get_user_models
-from cellpose.cli import get_arg_parser
 from dask.distributed import (Client, LocalCluster)
 
 from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_dt_merge)
@@ -42,6 +39,8 @@ def _stringlist(arg):
 
 
 def _define_args():
+    from cellpose.cli import get_arg_parser
+
     args_parser = get_arg_parser()
     args_parser.add_argument('-i','--input',
                              dest='input',
@@ -202,21 +201,22 @@ def _run_segmentation(args):
         models_dir = None
 
     if models_dir:
+        from cellpose.models import get_user_models
         logger.info(f'Download cellpose models to {models_dir}')
         get_user_models()
 
     if args.dask_scheduler:
         dask_client = Client(address=args.dask_scheduler)
         logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
-        worker_config = ConfigureWorkerPlugin(models_dir,
-                                            args.logging_config,
-                                            args.verbose,
-                                            worker_cpus=args.worker_cpus)
-        dask_client.register_plugin(worker_config, name='WorkerConfig')
     else:
         # use a local asynchronous client
-        dask_client = Client(LocalCluster())
+        dask_client = Client(LocalCluster(silence_logs=not args.verbose))
 
+    worker_config = ConfigureWorkerPlugin(models_dir,
+                                          args.logging_config,
+                                          args.verbose,
+                                          worker_cpus=args.worker_cpus)
+    dask_client.register_plugin(worker_config, name='WorkerConfig')
 
     image_data, image_attrs = read_utils.open(args.input, args.input_subpath,
                                               subpath_pattern=args.input_subpath_pattern)
@@ -306,9 +306,12 @@ def _run_segmentation(args):
                 anisotropy=anisotropy,
                 z_axis=z_axis,
                 channel_axis=channel_axis,
+                normalize=not args.no_norm,
+                normalize_percentile=args.norm_percentile,
                 flow_threshold=args.flow_threshold,
                 cellprob_threshold=args.cellprob_threshold,
                 stitch_threshold=args.stitch_threshold,
+                flow3D_smooth=args.flow3D_smooth,
                 iou_depth=args.iou_depth,
                 iou_threshold=args.iou_threshold,
                 label_dist_th=args.label_dist_th,
@@ -320,7 +323,8 @@ def _run_segmentation(args):
             )
 
             labels_attributes = prepare_attrs(output_subpath,
-                                              image_attrs,
+                                              axes=image_attrs.get('axes'),
+                                              coordinateTransformations=image_attrs.get('coordinateTransformations'),
                                               pixelResolution=image_attrs.get('pixelResolution'),
                                               downsamplingFactors=image_attrs.get('downsamplingFactors'))
 
@@ -357,6 +361,8 @@ def _run_segmentation(args):
 
 
 def _print_version_and_exit():
+    from cellpose import version_str as cellpose_version
+
     print(cellpose_version)
     sys.exit(0)
 

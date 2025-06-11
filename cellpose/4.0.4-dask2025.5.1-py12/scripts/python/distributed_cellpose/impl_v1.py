@@ -14,6 +14,7 @@ import io_utils.zarr_utils as zarr_utils
 
 from cellpose import transforms
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,6 +48,7 @@ def distributed_eval(
         flow_threshold=0.4,
         cellprob_threshold=0,
         stitch_threshold=0,
+        flow3D_smooth=1,
         iou_threshold=0,
         iou_depth=1,
         label_dist_th=1.0,
@@ -180,9 +182,19 @@ def distributed_eval(
         channel_axis=channel_axis,
         anisotropy=anisotropy,
         min_size=min_size,
+        normalize=normalize,
+        normalize_lowhigh=normalize_lowhigh,
+        normalize_percentile=normalize_percentile,
+        normalize_norm3D=normalize_norm3D,
+        normalize_sharpen_radius=normalize_sharpen_radius,
+        normalize_smooth_radius=normalize_smooth_radius,
+        normalize_tile_norm_blocksize=normalize_tile_norm_blocksize,
+        normalize_tile_norm_smooth3D=normalize_tile_norm_smooth3D,
+        normalize_invert=normalize_invert,
         flow_threshold=flow_threshold,
         cellprob_threshold=cellprob_threshold,
         stitch_threshold=stitch_threshold,
+        flow3D_smooth=flow3D_smooth,
         use_gpu=use_gpu,
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
@@ -266,6 +278,7 @@ def process_block(
     flow_threshold=0.4,
     cellprob_threshold=0,
     stitch_threshold=0,
+    flow3D_smooth=1,
     use_gpu=False,
     gpu_device=None,
     gpu_batch_size=8,
@@ -383,6 +396,7 @@ def process_block(
         f'flow_threshold: {flow_threshold}, '
         f'cellprob_threshold: {cellprob_threshold}, '
         f'stitch_threshold: {stitch_threshold}, '
+        f'flow3D_smooth: {flow3D_smooth}',
         f'gpu_batch_size: {gpu_batch_size}, '
     ))
     segmentation = read_preprocess_and_segment(
@@ -410,6 +424,7 @@ def process_block(
         flow_threshold=flow_threshold,
         cellprob_threshold=cellprob_threshold,
         stitch_threshold=stitch_threshold,
+        flow3D_smooth=flow3D_smooth,
         use_gpu=use_gpu,
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
@@ -455,8 +470,6 @@ def read_preprocess_and_segment(
     preprocessing_steps,
     # model_kwargs,
     model_type=None,
-    use_gpu=False,
-    gpu_device=None,
     # eval_kwargs
     diameter=None,
     z_axis=0,
@@ -476,6 +489,9 @@ def read_preprocess_and_segment(
     flow_threshold=0.4,
     cellprob_threshold=0,
     stitch_threshold=0,
+    flow3D_smooth=1,
+    use_gpu=False,
+    gpu_device=None,
     gpu_batch_size=8,
 ):
     """Read block from zarr array, run all preprocessing steps, run cellpose"""
@@ -493,8 +509,6 @@ def read_preprocess_and_segment(
         logger.debug(f'Apply preprocessing step: {pp_step}')
         image_block = pp_step[0](image_block, **pp_step[1])
 
-    image_block = transforms.normalize_img(image_block, axis=channel_axis)
-
     segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
                                                              device=gpu_device)
     logger.info(f'Segmentation device: {segmentation_device}:{gpu}')
@@ -504,7 +518,8 @@ def read_preprocess_and_segment(
     normalize_params = {
         "normalize": normalize,
         "lowhigh": normalize_lowhigh,
-        "percentile": normalize_percentile,
+        "percentile": ((int(normalize_percentile[0]), int(normalize_percentile[1]))
+                       if normalize_percentile is not None else None),
         "norm3D": normalize_norm3D,
         "sharpen_radius": normalize_sharpen_radius,
         "smooth_radius": normalize_smooth_radius,
@@ -512,6 +527,9 @@ def read_preprocess_and_segment(
         "tile_norm_smooth3D": normalize_tile_norm_smooth3D,
         "invert": normalize_invert,
     }
+    logger.info(f'Normalize params: {normalize_params}')
+    image_block = transforms.normalize_img(image_block, axis=channel_axis,
+                                           **normalize_params)
     labels = model.eval(image_block,
                         diameter=diameter,
                         z_axis=z_axis,
@@ -523,8 +541,8 @@ def read_preprocess_and_segment(
                         flow_threshold=flow_threshold,
                         cellprob_threshold=cellprob_threshold,
                         stitch_threshold=stitch_threshold,
+                        flow3D_smooth=flow3D_smooth,
                         batch_size=gpu_batch_size,
-                        flow3D_smooth=1,
                         )[0].astype(np.uint32)
     end_time = time.time()
     unique_labels = np.unique(labels)

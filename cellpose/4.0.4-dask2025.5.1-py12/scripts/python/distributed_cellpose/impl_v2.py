@@ -53,6 +53,7 @@ def distributed_eval(
         flow_threshold=0.4,
         cellprob_threshold=0,
         stitch_threshold=0,
+        flow3D_smooth=0,
         iou_threshold=0,
         iou_depth=1,
         label_dist_th=1.0,
@@ -67,20 +68,17 @@ def distributed_eval(
     and distribute the segmentation for each block on a dask cluster
     """
     start_time = time.time()
-    if diameter <= 0:
-        # always specify the diameter
-        diameter = 30
     image_ndim = len(image_shape)
     # check blocksoverlap
-    if blocksoverlap is None:
-        blocksoverlap = (diameter*2,) * image_ndim
+    if blocksoverlap is None or blocksoverlap == ():
+        blocksoverlap = [int(s * 0.1) for s in blocksize]
     elif isinstance(blocksoverlap, (int, float)):
-        blocksoverlap = (int(blocksoverlap),) * image_ndim
-    elif isinstance(blocksoverlap, tuple):
-        if len(blocksoverlap) < image_ndim:
-            blocksoverlap = blocksoverlap + (diameter*2,) * (image_ndim-len(blocksoverlap))
+        blocksoverlap = [int(blocksoverlap)] * image_ndim
     else:
-        raise ValueError(f'Invalid blocksoverlap {blocksoverlap} of type {type(blocksoverlap)} - expected tuple')
+        raise ValueError((
+            f'Invalid blocksoverlap {blocksoverlap} of type {type(blocksoverlap)} '
+            f'- expected tuple with same size as image dimensions: {image_ndim}'
+        ))
 
     blockchunks = np.array(blocksize, dtype=int)
     blockoverlaps = np.array(blocksoverlap, dtype=int)
@@ -127,6 +125,7 @@ def distributed_eval(
         flow_threshold=flow_threshold,
         cellprob_threshold=cellprob_threshold,
         stitch_threshold=stitch_threshold,
+        flow3D_smooth=flow3D_smooth,
         use_gpu=use_gpu,
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
@@ -327,8 +326,8 @@ def _segment_block(eval_method,
 
 def _eval_model(block_index,
                 block_data,
-                model_type='cyto3',
-                diameter=30,
+                model_type=None,
+                diameter=None,
                 min_size=15,
                 anisotropy=None,
                 do_3D=True,
@@ -346,6 +345,7 @@ def _eval_model(block_index,
                 flow_threshold=0.4,
                 cellprob_threshold=0,
                 stitch_threshold=0,
+                flow3D_smooth=0,
                 use_gpu=False,
                 gpu_device=None,
                 gpu_batch_size=8,
@@ -365,6 +365,7 @@ def _eval_model(block_index,
         f'flow_threshold: {flow_threshold}, '
         f'cellprob_threshold: {cellprob_threshold}, '
         f'stitch_threshold: {stitch_threshold}, '
+        f'flow3D_smooth: {flow3D_smooth}, '
         f'gpu_batch_size: {gpu_batch_size}, '
     ))
 
@@ -379,7 +380,8 @@ def _eval_model(block_index,
     normalize_params = {
         "normalize": normalize,
         "lowhigh": normalize_lowhigh,
-        "percentile": normalize_percentile,
+        "percentile": ((int(normalize_percentile[0]), int(normalize_percentile[1]))
+                       if normalize_percentile is not None else None),
         "norm3D": normalize_norm3D,
         "sharpen_radius": normalize_sharpen_radius,
         "smooth_radius": normalize_smooth_radius,
@@ -398,8 +400,8 @@ def _eval_model(block_index,
                         flow_threshold=flow_threshold,
                         cellprob_threshold=cellprob_threshold,
                         stitch_threshold=stitch_threshold,
+                        flow3D_smooth=flow3D_smooth,
                         batch_size=gpu_batch_size,
-                        flow3D_smooth=1,
                         )[0]
     end_time = time.time()
     unique_labels = np.unique(labels)
