@@ -205,14 +205,13 @@ def _run_segmentation(args):
         logger.info(f'Download cellpose models to {models_dir}')
         get_user_models()
 
-    logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
-    worker_config = ConfigureWorkerPlugin(models_dir,
-                                          args.logging_config,
-                                          args.verbose,
-                                          worker_cpus=args.worker_cpus)
-
     if args.dask_scheduler:
         dask_client = Client(address=args.dask_scheduler)
+        logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
+        worker_config = ConfigureWorkerPlugin(models_dir,
+                                            args.logging_config,
+                                            args.verbose,
+                                            worker_cpus=args.worker_cpus)
         dask_client.register_plugin(worker_config, name='WorkerConfig')
     else:
         # use a local asynchronous client
@@ -244,24 +243,18 @@ def _run_segmentation(args):
     if args.output:
         output_subpath = args.output_subpath if args.output_subpath else args.input_subpath
 
-        if (args.output_blocksize is not None and
-            len(args.output_blocksize) == image_ndim):
-            zyx_blocksize = args.output_blocksize[::-1] # make it zyx
-            output_blocks = tuple([d if d > 0 else image_shape[di] 
-                                   for di,d in enumerate(zyx_blocksize)])
-        else:
-            # default to output_chunk_size
-            output_blocks = (args.output_chunk_size,) * image_ndim
-
-        if (args.process_blocksize is not None and
-            len(args.process_blocksize) == image_ndim):
-            zyx_process_size = args.process_blocksize[::-1] # make it zyx
-            process_blocksize = tuple([d if d > 0 else image_shape[di] 
+        if args.process_blocksize is not None:
+            if len(args.process_blocksize) < image_ndim:
+                # append 0s
+                process_blocksize_arg = (args.process_blocksize +
+                                        (0,) * (image_ndim - len(args.process_blocksize)))
+            else:
+                process_blocksize_arg = args.process_blocksize
+            zyx_process_size = process_blocksize_arg[::-1] # make it zyx
+            process_blocksize = tuple([d if d > 0 else image_shape[di]
                                         for di,d in enumerate(zyx_process_size)])
         else:
-            process_blocksize = output_blocks
-
-        print('!!!!! PROCESS BLOCK SIZE: ', process_blocksize, " !!!! SHAPE ", image_shape)
+            process_blocksize = image_shape # process the whole image
 
         if (args.blocks_overlaps is not None and
             len(args.blocks_overlaps) > 0):
@@ -330,6 +323,21 @@ def _run_segmentation(args):
                                               image_attrs,
                                               pixelResolution=image_attrs.get('pixelResolution'),
                                               downsamplingFactors=image_attrs.get('downsamplingFactors'))
+
+            if args.output_blocksize is not None:
+                if len(args.output_blocksize) < output_labels.ndim:
+                    # append 0s
+                    output_blocksize_arg = (args.output_blocksize +
+                                            (0,) * (output_labels.ndim - len(args.output_blocksize)))
+                else:
+                    output_blocksize_arg = args.output_blocksize
+                zyx_blocksize = output_blocksize_arg[::-1] # make it zyx
+                output_blocks = tuple([d if d > 0 else output_labels.shape[di]
+                                    for di,d in enumerate(zyx_blocksize)])
+            else:
+                # default to output_chunk_size
+                output_blocks = (args.output_chunk_size,) * output_labels.ndim
+
             persisted_labels = write_utils.save(
                 output_labels, args.output, output_subpath,
                 blocksize=output_blocks,

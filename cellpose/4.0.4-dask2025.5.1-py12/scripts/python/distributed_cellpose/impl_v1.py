@@ -35,11 +35,20 @@ def distributed_eval(
         channel_axis=None,
         anisotropy=None,
         min_size=15,
+        normalize=True,
+        normalize_lowhigh=None,
+        normalize_percentile=None,
+        normalize_norm3D=True,
+        normalize_sharpen_radius=0,
+        normalize_smooth_radius=0,
+        normalize_tile_norm_blocksize=0,
+        normalize_tile_norm_smooth3D=1,
+        normalize_invert=False,
         flow_threshold=0.4,
         cellprob_threshold=0,
         stitch_threshold=0,
-        iou_depth=1,
         iou_threshold=0,
+        iou_depth=1,
         label_dist_th=1.0,
         persist_labeled_blocks=True,
         use_gpu=False,
@@ -117,8 +126,6 @@ def distributed_eval(
         ID is the first tuple in the list, the largest segment ID is the last
         tuple in the list.
     """
-    print('!!!!! IMAGE SUBPATH: ', image_subpath)
-    print(f'!!!! IMAGE SHAPE: {image_shape} overlap {blocksoverlap} blocksize: {blocksize}', flush=True)
     image_ndim = len(image_shape)
     # check blocksoverlap
     if blocksoverlap is None or blocksoverlap == ():
@@ -132,21 +139,20 @@ def distributed_eval(
         ))
 
     blocksoverlap_arr = np.array(blocksoverlap, dtype=int)
-    print(f' !!!!!! BLOCK OVERLAPS: {blocksoverlap_arr}')
     block_indices, block_crops = get_block_crops(
         image_shape, blocksize, blocksoverlap_arr, mask,
     )
 
     segmentation_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
     segmentation_block = [s for i, s in enumerate(blocksize) if i != channel_axis]
-    segmentation_zarr_container = f'{output_dir}/segmentation.zarr'
+    segmentation_zarr_path = f'{output_dir}/segmentation.zarr'
     logger.info((
         f'Create temporary {segmentation_shape} labels '
-        f'at {segmentation_zarr_container} with {segmentation_block} chunks'
+        f'at {segmentation_zarr_path} with {segmentation_block} chunks'
     ))
 
     labels_zarr = zarr_utils.create_dataset(
-        segmentation_zarr_container,
+        segmentation_zarr_path,
         'block_labels',
         segmentation_shape,
         segmentation_block,
@@ -209,7 +215,11 @@ def distributed_eval(
         f'Relabel {box_ids.shape} blocks of type {box_ids.dtype} - '
         f'use {len(faces)} faces for merging labels'
     ))
-    new_labeling = determine_merge_relabeling(block_indices, faces, box_ids,
+    label_block_indices = []
+    for bi in block_indices:
+        label_block_indices.append(tuple([b for i,b in enumerate(bi) if i != channel_axis]))
+
+    new_labeling = determine_merge_relabeling(label_block_indices, faces, box_ids,
                                               label_dist_th=label_dist_th)
     new_labeling_path = f'{output_dir}/new_labeling.npy'
     np.save(new_labeling_path, new_labeling)
@@ -410,17 +420,23 @@ def process_block(
     labels_coords = [c for i, c in enumerate(crop) if i != channel_axis]
     labels_overlaps = [o for i, o in enumerate(blocksoverlap) if i != channel_axis]
     labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
-    print('!!!!!!!! SEGMENTATION 1 ', segmentation.shape, labels_coords, labels_overlaps, labels_blocksize)
+
+    logger.debug((
+        f'adjusted labels image shape to {labels_image_shape} '
+        f'labels block index to {labels_block_index} '
+        f'labels block coords to {labels_coords} '
+        f'labels block overlaps to {labels_overlaps} '
+        f'labels block size to {labels_blocksize} '
+    ))
+    logger.debug(f'Segmented block shape before removing overlaps: {segmentation.shape}')
     segmentation, labels_coords = remove_overlaps(segmentation, labels_coords, labels_overlaps, labels_blocksize)
-    print('!!!!!!!! SEGMENTATION 2 ', segmentation.shape)
+    logger.debug(f'Segmented block shape after removing overlaps: {segmentation.shape}')
     boxes = bounding_boxes_in_global_coordinates(segmentation, labels_coords)
-    print('!!!!!!!! BOXES ', len(boxes))
     nblocks = get_nblocks(labels_image_shape, labels_blocksize)
     segmentation, remap = global_segment_ids(segmentation, labels_block_index, nblocks)
     if remap[0] == 0:
         remap = remap[1:]
 
-    print('!!!!!!!! SEGMENTATION ', crop, segmentation.shape, )
     labels_output_zarr[tuple(labels_coords)] = segmentation
 
     if test_mode:
@@ -631,13 +647,12 @@ def global_segment_ids(segmentation, block_index, nblocks):
         f'- start at: {nblocks} '
         f'- found {len(unique)} unique labels'
     ))
-    print('!!!!! UNIQUE ', unique)
     p = str(np.ravel_multi_index(block_index, nblocks))
     remap = [int(p+str(x).zfill(5)) for x in unique]
     if unique[0] == 0:
         remap[0] = 0  # 0 should just always be 0
     segmentation = np.array(remap, dtype=np.uint32)[unique_inverse.reshape(segmentation.shape)]
-    print('!!!!! ReMAP ', remap)
+    logger.debug(f'Remap: {remap}')
     return segmentation, remap
 
 
