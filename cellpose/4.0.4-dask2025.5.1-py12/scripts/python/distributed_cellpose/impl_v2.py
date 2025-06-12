@@ -7,6 +7,7 @@ import dask.array as da
 import functools
 import logging
 import numpy as np
+import os
 import scipy
 import skimage
 import time
@@ -183,6 +184,7 @@ def distributed_eval(
         )
         # save labels to a temporary file for the relabeling process
         new_labeling_filename = f'{output_dir}/new_labeling.npy'
+        logger.info(f'Save new labeling to {new_labeling_filename}')
         persisted_new_labeling = dask.delayed(_save_labels)(
             new_labeling,
             new_labeling_filename,
@@ -657,8 +659,9 @@ def _mappings_as_csr(lmapping, n):
     return csr_mat
 
 
-def _save_labels(l, lfilename):
-    np.save(lfilename, l)
+def _save_labels(values, lfilename):
+    os.makedirs(os.path.dirname(lfilename) ,exist_ok=True)
+    np.save(lfilename, values)
     return lfilename
 
 

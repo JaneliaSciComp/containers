@@ -523,13 +523,14 @@ def read_preprocess_and_segment(
     if use_gpu:
         available_gpus = torch.cuda.device_count()
         logger.info(f'Found {available_gpus} GPUs')
-        if available_gpus > 0:
+        if available_gpus > 1:
             # if multiple gpus are available try to find one that can be used
+            segmentation_device, gpu = None, False
             for gpui in range(available_gpus):
-                logger.info(f'Try GPU: {gpui}')
+                logger.debug(f'Try GPU: {gpui}')
                 segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
-                                                                        device=gpui)
-                logger.info(f'Result for GPU: {gpui} => {segmentation_device}:{gpu}')
+                                                                         device=gpui)
+                logger.debug(f'Result for GPU: {gpui} => {segmentation_device}:{gpu}')
                 if gpu:
                     break # an available GPU found
         else:
@@ -538,7 +539,7 @@ def read_preprocess_and_segment(
     else:
         segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
                                                                 device=gpu_device)
-    logger.info(f'Segmentation device: {segmentation_device}:{gpu}')
+    logger.info(f'Segmentation device for block {crop}: {segmentation_device}:{gpu}')
     model = cellpose.models.CellposeModel(gpu=gpu,
                                           pretrained_model=model_type,
                                           device=segmentation_device)
