@@ -343,6 +343,7 @@ def _eval_model(block_index,
     start_time = time.time()
     if use_gpu:
         available_gpus = torch.cuda.device_count()
+        logger.info(f'Found {available_gpus} GPUs')
         if available_gpus > 0:
             # if multiple gpus are available try to find one that can be used
             segmentation_device, gpu = None, False
