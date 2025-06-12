@@ -526,13 +526,15 @@ def read_preprocess_and_segment(
         if available_gpus > 0:
             # if multiple gpus are available try to find one that can be used
             for gpui in range(available_gpus):
+                logger.info(f'Try GPU: {gpui}')
                 segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
                                                                         device=gpui)
+                logger.info(f'Result for GPU: {gpui} => {segmentation_device}:{gpu}')
                 if gpu:
                     break # an available GPU found
         else:
             segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
-                                                                    device=gpu_device)
+                                                                     device=gpu_device)
     else:
         segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
                                                                 device=gpu_device)
