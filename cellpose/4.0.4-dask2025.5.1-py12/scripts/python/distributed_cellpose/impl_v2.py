@@ -184,6 +184,7 @@ def distributed_eval(
         )
         # save labels to a temporary file for the relabeling process
         new_labeling_filename = f'{output_dir}/new_labeling.npy'
+        os.makedirs(output_dir, exist_ok=True)
         logger.info(f'Save new labeling to {new_labeling_filename}')
         persisted_new_labeling = dask.delayed(_save_labels)(
             new_labeling,
@@ -360,7 +361,7 @@ def _eval_model(block_index,
     else:
         segmentation_device, gpu = models.assign_device(gpu=use_gpu,
                                                         device=gpu_device)
-    logger.info(f'Segmentation device: {segmentation_device}:{gpu}')
+    logger.info(f'Segmentation device for block {block_index}: {segmentation_device}:{gpu}')
     model = models.CellposeModel(gpu=gpu,
                                  pretrained_model=model_type,
                                  device=segmentation_device)
@@ -660,7 +661,6 @@ def _mappings_as_csr(lmapping, n):
 
 
 def _save_labels(values, lfilename):
-    os.makedirs(os.path.dirname(lfilename) ,exist_ok=True)
     np.save(lfilename, values)
     return lfilename
 
