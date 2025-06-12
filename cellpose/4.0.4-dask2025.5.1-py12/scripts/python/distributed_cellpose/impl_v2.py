@@ -10,6 +10,7 @@ import numpy as np
 import scipy
 import skimage
 import time
+import torch
 import traceback
 
 import io_utils.read_utils as read_utils
@@ -248,7 +249,7 @@ def _segment_block(eval_method,
     # labels are single channel so if the input was multichannel remove the channel coords
     labels_index = [b for i, b in enumerate(block_index) if i != channel_axis]
     labels_coords = [c for i, c in enumerate(block_coords) if i != channel_axis]
-    labels_overlaps = [o for i, o in enumerate(blocksoverlap) if i != channel_axis]
+    labels_overlaps = [o for i, o in enumerate(blockoverlaps) if i != channel_axis]
     labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
 
     unique_labels_with_overlaps = np.unique(labels)
@@ -340,8 +341,23 @@ def _eval_model(block_index,
     np.random.seed(block_index)
 
     start_time = time.time()
-    segmentation_device, gpu = models.assign_device(gpu=use_gpu,
-                                                    device=gpu_device)
+    if use_gpu:
+        available_gpus = torch.cuda.device_count()
+        if available_gpus > 0:
+            # if multiple gpus are available try to find one that can be used
+            segmentation_device, gpu = None, False
+            for gpui in range(available_gpus):
+                segmentation_device, gpu = models.assign_device(gpu=use_gpu,
+                                                                device=gpui)
+                if gpu:
+                    break # an available GPU found
+        else:
+            segmentation_device, gpu = models.assign_device(gpu=use_gpu,
+                                                            device=gpu_device)
+    else:
+        segmentation_device, gpu = models.assign_device(gpu=use_gpu,
+                                                        device=gpu_device)
+    logger.info(f'Segmentation device: {segmentation_device}:{gpu}')
     model = models.CellposeModel(gpu=gpu,
                                  pretrained_model=model_type,
                                  device=segmentation_device)

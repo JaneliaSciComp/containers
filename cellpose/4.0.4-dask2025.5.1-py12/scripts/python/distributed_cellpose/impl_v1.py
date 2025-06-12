@@ -8,6 +8,7 @@ import logging
 import numpy as np
 import scipy
 import time
+import torch
 
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
@@ -519,8 +520,21 @@ def read_preprocess_and_segment(
         logger.debug(f'Apply preprocessing step: {pp_step}')
         image_block = pp_step[0](image_block, **pp_step[1])
 
-    segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
-                                                             device=gpu_device)
+    if use_gpu:
+        available_gpus = torch.cuda.device_count()
+        if available_gpus > 0:
+            # if multiple gpus are available try to find one that can be used
+            for gpui in range(available_gpus):
+                segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
+                                                                        device=gpui)
+                if gpu:
+                    break # an available GPU found
+        else:
+            segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
+                                                                    device=gpu_device)
+    else:
+        segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
+                                                                device=gpu_device)
     logger.info(f'Segmentation device: {segmentation_device}:{gpu}')
     model = cellpose.models.CellposeModel(gpu=gpu,
                                           pretrained_model=model_type,
