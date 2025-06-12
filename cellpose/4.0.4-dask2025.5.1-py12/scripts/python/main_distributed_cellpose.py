@@ -37,6 +37,11 @@ def _stringlist(arg):
     else:
         return []
 
+def _intlist(arg):
+    if arg is not None and arg.strip():
+        return [int(d) for d in arg.split(',')]
+    else:
+        return []
 
 def _define_args():
     from cellpose.cli import get_arg_parser
@@ -50,10 +55,15 @@ def _define_args():
                              dest='input_subpath',
                              type=str,
                              help = "input subpath")
-    args_parser.add_argument('--input-subpath-pattern',
-                             dest='input_subpath_pattern',
-                             type=str,
-                             help = "input subpath pattern")
+    args_parser.add_argument('--timeindex',
+                             dest='input_timeindex',
+                             type=int,
+                             default=0,
+                             help = "input time index")
+    args_parser.add_argument('--input-channels',
+                             dest='input_channels',
+                             type=_intlist,
+                             help = "input segmentation channels")
 
     args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
                              dest='voxel_spacing',
@@ -219,7 +229,8 @@ def _run_segmentation(args):
     dask_client.register_plugin(worker_config, name='WorkerConfig')
 
     image_data, image_attrs = read_utils.open(args.input, args.input_subpath,
-                                              subpath_pattern=args.input_subpath_pattern)
+                                              data_timeindex=args.input_timeindex,
+                                              data_channels=args.input_channels)
     image_ndim = image_data.ndim
     image_shape = image_data.shape
     image_dtype = image_data.dtype
@@ -294,8 +305,9 @@ def _run_segmentation(args):
             output_labels, _ = distributed_eval_method(
                 args.input,
                 args.input_subpath,
-                args.input_subpath_pattern,
                 image_shape,
+                args.input_timeindex,
+                args.input_channels,
                 args.segmentation_model,
                 process_blocksize,
                 args.working_dir,

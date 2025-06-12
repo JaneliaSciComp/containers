@@ -15,9 +15,11 @@ import traceback
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
 
-from cellpose.models import get_user_models
+from cellpose import transforms
 from dask.distributed import as_completed
 from sklearn import metrics as sk_metrics
+
+from .block_utils import (get_block_crops, get_nblocks, remove_overlaps)
 
 
 logger = logging.getLogger(__name__)
@@ -26,8 +28,9 @@ logger = logging.getLogger(__name__)
 def distributed_eval(
         image_container_path,
         image_subpath,
-        image_subpath_pattern,
         image_shape,
+        timeindex,
+        image_channels,
         model_type,
         blocksize,
         output_dir,
@@ -88,21 +91,13 @@ def distributed_eval(
         if blockoverlaps[ax] > blockchunks[ax] / 2:
             blockoverlaps[ax] = int(blockchunks[ax] / 2)
 
-    nblocks = np.ceil(np.array(image_shape) / blockchunks).astype(int)
+    nblocks = get_nblocks(image_shape, blockchunks)
     logger.info((
         f'Blocksize:{blockchunks}, '
         f'overlap:{blockoverlaps} => {nblocks} blocks '
     ))
 
-    blocks_info = []
-    for (i, j, k) in np.ndindex(*nblocks):
-        start = blockchunks * (i, j, k) - blockoverlaps
-        stop = start + blockchunks + 2*blockoverlaps
-        start = np.maximum(0, start)
-        stop = np.minimum(image_shape, stop)
-        blockslice = tuple(slice(x, y) for x, y in zip(start, stop))
-        if _is_not_masked(mask, image_shape, blockslice):
-            blocks_info.append(((i, j, k), blockslice))
+    blocks_info = [bi for bi in zip(*get_block_crops(image_shape, blockchunks, blockoverlaps, mask)) ]
 
     eval_block = functools.partial(
         _eval_model,
@@ -131,14 +126,14 @@ def distributed_eval(
         gpu_batch_size=gpu_batch_size,
     )
 
-    logger.info(f'Cache cellpose models {model_type}')
-    get_user_models()
-
     segment_block = functools.partial(
         _segment_block,
         eval_block,
         image_container_path=image_container_path,
         image_subpath=image_subpath,
+        data_timeindex=timeindex,
+        data_channels=image_channels,
+        channel_axis=channel_axis,
         blocksize=blockchunks,
         blockoverlaps=blockoverlaps,
         preprocessing_steps=preprocessing_steps,
@@ -151,10 +146,13 @@ def distributed_eval(
         blocks_info,
     )
 
+    labels_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
+    labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+
     labeled_blocks, labeled_blocks_info, max_label = _collect_labeled_blocks(
         segment_block_res,
-        image_shape,
-        blocksize,
+        labels_shape,
+        labels_blocksize,
         output_dir=output_dir,
         persist_labeled_blocks=persist_labeled_blocks,
     )
@@ -202,29 +200,16 @@ def distributed_eval(
     return relabeled, []
 
 
-def _is_not_masked(mask, image_shape, blockslice):
-    if mask is None:
-        return True
-
-    mask_to_image_ratio = np.array(mask.shape) / image_shape
-    mask_start = np.floor([s.start for s in blockslice] *
-                          mask_to_image_ratio).astype(int)
-    mask_stop = np.ceil([s.stop for s in blockslice] *
-                        mask_to_image_ratio).astype(int)
-    mask_crop = mask[tuple(slice(a, b) for a, b in zip(mask_start, mask_stop))]
-    if np.any(mask[mask_crop]):
-        return True
-    else:
-        return False
-
-
-def _read_block_data(block_info, image_container_path, image_subpath=None):
+def _read_block_data(block_info, image_container_path, image_subpath=None,
+                     data_timeindex=None, data_channels = None):
     block_index, block_coords = block_info
     logger.info((
         f'Get block: {block_index} at {block_coords} from '
         f'{image_container_path}:{image_subpath} '
     ))
     block_data, _ = read_utils.open(image_container_path, image_subpath,
+                                    data_timeindex=data_timeindex,
+                                    data_channels=data_channels,
                                     block_coords=block_coords)
     logger.info(f'Retrieved block {block_index} of shape {block_data.shape}')
     return block_data
@@ -234,57 +219,40 @@ def _segment_block(eval_method,
                    block_info,
                    image_container_path=None,
                    image_subpath=None,
-                   blocksize=None,
-                   blockoverlaps=None,
+                   data_timeindex=None,
+                   data_channels=None,
+                   channel_axis=None,
+                   blocksize=[],
+                   blockoverlaps=[],
                    preprocessing_steps=[],
                    ):
     block_index, block_coords = block_info
+    block_shape = tuple([sl.stop-sl.start for sl in block_coords])
+
     start_time = time.time()
     logger.info((
         f'Segment block: {block_index}, {block_coords} '
         f'blocksize: {blocksize}, blockoverlaps: {blockoverlaps} '
+        f'block shape: {block_shape} '
     ))
-    block_shape = tuple([sl.stop-sl.start for sl in block_coords])
-
     block_data = _read_block_data(block_info, image_container_path,
-                                  image_subpath=image_subpath)
+                                  image_subpath=image_subpath,
+                                  data_timeindex=data_timeindex,
+                                  data_channels=data_channels)
     # preprocess
     for pp_step in preprocessing_steps:
         logger.debug(f'Apply preprocessing step: {pp_step}')
         block_data = pp_step[0](block_data, **pp_step[1])
 
     labels = eval_method(block_index, block_data)
+    # labels are single channel so if the input was multichannel remove the channel coords
+    labels_index = [b for i, b in enumerate(block_index) if i != channel_axis]
+    labels_coords = [c for i, c in enumerate(block_coords) if i != channel_axis]
+    labels_overlaps = [o for i, o in enumerate(blocksoverlap) if i != channel_axis]
+    labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+
     unique_labels_with_overlaps = np.unique(labels)
-    # remove overlaps
-    logger.debug(f'Remove {blockoverlaps} overlaps for block: {block_index}:{block_coords}:{labels.shape}')
-    new_block_coords = list(block_coords)
-    for axis in range(block_data.ndim):
-        # left side
-        if block_coords[axis].start != 0:
-            slc = [slice(None),]*block_data.ndim
-            slc[axis] = slice(blockoverlaps[axis], None)
-            loverlap_index = tuple(slc)
-            logger.debug((
-                f'Remove left overlap on axis {axis}: {loverlap_index} ({type(loverlap_index)}) '
-                f'from labeled block of shape: {labels.shape} '
-            ))
-            labels = labels[loverlap_index]
-            a, b = block_coords[axis].start, block_coords[axis].stop
-            new_block_coords[axis] = slice(a + blockoverlaps[axis], b)
-
-        # right side
-        if block_shape[axis] > blocksize[axis]:
-            slc = [slice(None),]*block_data.ndim
-            slc[axis] = slice(None, blocksize[axis])
-            roverlap_index = tuple(slc)
-            logger.debug((
-                f'Remove right overlap on axis {axis}: {roverlap_index} ({type(roverlap_index)}) '
-                f'from labeled block of shape: {labels.shape} '
-            ))
-            labels = labels[roverlap_index]
-            a = new_block_coords[axis].start
-            new_block_coords[axis] = slice(a, a + blocksize[axis])
-
+    labels, labels_coords = remove_overlaps(labels, labels_coords, labels_overlaps, labels_blocksize)
     end_time = time.time()
     # after removing the overlaps some labels may be missing
     # so we need to relabel the block again with contiguous labels
@@ -311,17 +279,17 @@ def _segment_block(eval_method,
 
         max_label = np.max(relabeled_block)
         logger.info((
-            f'Relabeled block {block_index} - {relabeled_block.shape} '
+            f'Relabeled block {labels_index} - {relabeled_block.shape} '
             f'block max label: {max_label} '
         ))
-        return block_index, tuple(new_block_coords), max_label, relabeled_block
+        return labels_index, tuple(labels_coords), max_label, relabeled_block
     else:
         max_label = np.max(labels)
         logger.info((
-            f'No need to relabel block {block_index} - {labels.shape} '
+            f'No need to relabel block {labels_index} - {labels.shape} '
             f'block max label: {max_label} '
         ))
-        return block_index, tuple(new_block_coords), max_label, labels
+        return labels_index, tuple(labels_coords), max_label, labels
 
 
 def _eval_model(block_index,
@@ -389,6 +357,9 @@ def _eval_model(block_index,
         "tile_norm_smooth3D": normalize_tile_norm_smooth3D,
         "invert": normalize_invert,
     }
+    logger.info(f'Normalize params: {normalize_params}')
+    block_data = transforms.normalize_img(block_data, axis=channel_axis,
+                                          **normalize_params)
     labels = model.eval(block_data,
                         diameter=diameter,
                         min_size=min_size,

@@ -14,6 +14,8 @@ import io_utils.zarr_utils as zarr_utils
 
 from cellpose import transforms
 
+from .block_utils import (get_block_crops, get_nblocks, remove_overlaps)
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +23,9 @@ logger = logging.getLogger(__name__)
 def distributed_eval(
         image_container_path,
         image_subpath,
-        image_subpath_pattern,
         image_shape,
+        timeindex,
+        image_channels,
         model_type,
         blocksize,
         output_dir,
@@ -75,13 +78,15 @@ def distributed_eval(
     image_subpath : string
         Dataset path relative to path.
 
-    image_subpath_pattern : string
-        Dataset components pattern - a string like 'tcs'
-        that tells what each subpath component represents
-
     image_shape : tuple
         Image shape in voxels. E.g. (512, 1024, 1024)
 
+    timeindex : string
+        if the image is a 5-D TCZYX ndarray specify which timeindex to use
+
+    channels : string
+        if the image is a multichannel image specify which channels to use
+                
     blocksize : iterable
         The size of blocks in voxels. E.g. [128, 256, 256]
 
@@ -169,8 +174,9 @@ def distributed_eval(
         block_crops,
         image_container_path=image_container_path,
         image_subpath=image_subpath,
-        image_subpath_pattern=image_subpath_pattern,
         image_shape=image_shape,
+        data_timeindex=timeindex,
+        data_channels=image_channels,
         blocksize=blocksize,
         blocksoverlap=blocksoverlap_arr,
         labels_output_zarr=labels_zarr,
@@ -253,8 +259,9 @@ def process_block(
     crop,
     image_container_path,
     image_subpath,
-    image_subpath_pattern,
     image_shape,
+    data_timeindex,
+    data_channels,
     blocksize,
     blocksoverlap,
     labels_output_zarr,
@@ -402,7 +409,8 @@ def process_block(
     segmentation = read_preprocess_and_segment(
         image_container_path, 
         image_subpath,
-        image_subpath_pattern, 
+        data_timeindex,
+        data_channels,
         crop, 
         preprocessing_steps,
         model_type=model_type,
@@ -465,7 +473,8 @@ def process_block(
 def read_preprocess_and_segment(
     image_container_path,
     image_subpath,
-    image_subpath_pattern,
+    data_timeindex,
+    data_channels,
     crop,
     preprocessing_steps,
     # model_kwargs,
@@ -500,7 +509,8 @@ def read_preprocess_and_segment(
         f'{image_container_path}:{image_subpath} '
     ))
     image_block, _ = read_utils.open(image_container_path, image_subpath,
-                                     subpath_pattern=image_subpath_pattern,
+                                     data_timeindex=data_timeindex,
+                                     data_channels=data_channels,
                                      block_coords=crop)
 
     start_time = time.time()
@@ -532,12 +542,12 @@ def read_preprocess_and_segment(
                                            **normalize_params)
     labels = model.eval(image_block,
                         diameter=diameter,
-                        z_axis=z_axis,
-                        channel_axis=channel_axis,
-                        do_3D=do_3D,
-                        normalize=normalize_params,
                         min_size=min_size,
                         anisotropy=anisotropy,
+                        do_3D=do_3D,
+                        z_axis=z_axis,
+                        channel_axis=channel_axis,
+                        normalize=normalize_params,
                         flow_threshold=flow_threshold,
                         cellprob_threshold=cellprob_threshold,
                         stitch_threshold=stitch_threshold,
@@ -552,87 +562,6 @@ def read_preprocess_and_segment(
         f'in {end_time-start_time}s '
     ))
     return labels
-
-
-def get_block_crops(shape, blocksize, overlaps, mask):
-    """
-    Given a voxel grid shape, blocksize, and overlap size, construct
-       tuples of slices for every block; optionally only include blocks
-       that contain foreground in the mask. Returns parallel lists,
-       the block indices and the slice tuples.
-    """
-    blocksize = np.array(blocksize, dtype=int)
-    blockoverlaps = np.array(overlaps, dtype=int)
-
-    if mask is not None:
-        ratio = np.array(mask.shape) / shape
-        mask_blocksize = np.round(ratio * blocksize).astype(int)
-
-    indices, crops = [], []
-    nblocks = get_nblocks(shape, blocksize)
-    for index in np.ndindex(*nblocks):
-        start = blocksize * index - blockoverlaps
-        stop = start + blocksize + 2 * blockoverlaps
-        start = np.maximum(0, start)
-        stop = np.minimum(shape, stop)
-        crop = tuple(slice(x, y) for x, y in zip(start, stop))
-
-        foreground = True
-        if mask is not None:
-            start = mask_blocksize * index
-            stop = start + mask_blocksize
-            stop = np.minimum(mask.shape, stop)
-            mask_crop = tuple(slice(x, y) for x, y in zip(start, stop))
-            if not np.any(mask[mask_crop]):
-                foreground = False
-        if foreground:
-            indices.append(index)
-            crops.append(crop)
-    return indices, crops
-
-
-def get_nblocks(shape, blocksize):
-    """Given a shape and blocksize determine the number of blocks per axis"""
-    return np.ceil(np.array(shape) / blocksize).astype(int)
-
-
-def remove_overlaps(array, crop, overlaps, blocksize):
-    """
-    Overlaps are only there to provide context for boundary voxels
-    and can be removed after segmentation is complete
-    reslice array to remove the overlaps
-    """
-    logger.debug((
-        f'Remove overlaps: {overlaps} '
-        f'crop: {crop} '
-        f'blocksize is {blocksize} '
-        f'block shape: {array.shape} '
-    ))
-    crop_trimmed = list(crop)
-    for axis in range(array.ndim):
-        if crop[axis].start != 0:
-            slc = [slice(None),]*array.ndim
-            slc[axis] = slice(overlaps[axis], None)
-            loverlap_index = tuple(slc)
-            logger.debug((
-                f'Remove left overlap on axis {axis}: {loverlap_index} ({type(loverlap_index)}) '
-                f'from labeled block of shape: {array.shape} '
-            ))
-            array = array[loverlap_index]
-            a, b = crop[axis].start, crop[axis].stop
-            crop_trimmed[axis] = slice(a + overlaps[axis], b)
-        if array.shape[axis] > blocksize[axis]:
-            slc = [slice(None),]*array.ndim
-            slc[axis] = slice(None, blocksize[axis])
-            roverlap_index = tuple(slc)
-            logger.debug((
-                f'Remove right overlap on axis {axis}: {roverlap_index} ({type(roverlap_index)}) '
-                f'from labeled block of shape: {array.shape} '
-            ))
-            array = array[roverlap_index]
-            a = crop_trimmed[axis].start
-            crop_trimmed[axis] = slice(a, a + blocksize[axis])
-    return array, crop_trimmed
 
 
 def bounding_boxes_in_global_coordinates(segmentation, crop):
