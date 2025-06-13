@@ -365,10 +365,23 @@ def _eval_model(block_index,
             # if multiple gpus are available try to find one that can be used
             segmentation_device, gpu = None, False
             for gpui in range(available_gpus):
-                segmentation_device, gpu = models.assign_device(gpu=use_gpu,
-                                                                device=gpui)
-                if gpu:
-                    break # an available GPU found
+                try:
+                    logger.debug(f'Try GPU: {gpui}')
+                    segmentation_device, gpu = models.assign_device(gpu=use_gpu,
+                                                                    device=gpui)
+                    logger.debug(f'Result for GPU: {gpui} => {segmentation_device}:{gpu}')
+                    if gpu:
+                        break
+                    # because of a bug in cellpose trying the other devices explicitly here
+                    torch.cuda.set_device(gpui)
+                    segmentation_device = torch.device(f'cuda:{gpui}')
+                    logger.info(f'Device {segmentation_device} present and usable')
+                    _ = torch.zeros((1,1)).to(segmentation_device)
+                    logger.info(f'Device {segmentation_device} tested and it is usable')
+                    gpu = True
+                    break
+                except Exception as e:
+                    logger.warning(f'cuda:{gpui} present but not usable: {e}')
         else:
             segmentation_device, gpu = models.assign_device(gpu=use_gpu,
                                                             device=gpu_device)

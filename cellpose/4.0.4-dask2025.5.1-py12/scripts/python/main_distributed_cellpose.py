@@ -142,6 +142,9 @@ def _define_args():
                                   dest='dask_config',
                                   type=str, default=None,
                                   help='Dask configuration yaml file')
+    distributed_args.add_argument('--local-dask-workers', dest='local_dask_workers',
+                                  type=int, default=1,
+                                  help='Number of workers when using a local cluster')
     distributed_args.add_argument('--worker-cpus', dest='worker_cpus',
                                   type=int, default=0,
                                   help='Number of cpus allocated to a dask worker')
@@ -220,7 +223,7 @@ def _run_segmentation(args):
         logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
     else:
         # use a local asynchronous client
-        dask_client = Client(LocalCluster(silence_logs=not args.verbose))
+        dask_client = Client(LocalCluster(n_workers=args.local_dask_workers))
 
     worker_config = ConfigureWorkerPlugin(models_dir,
                                           args.logging_config,
