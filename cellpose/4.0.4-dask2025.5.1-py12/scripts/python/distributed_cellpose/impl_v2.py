@@ -135,6 +135,7 @@ def distributed_eval(
         image_subpath=image_subpath,
         data_timeindex=timeindex,
         data_channels=image_channels,
+        do_3D=do_3D,
         channel_axis=channel_axis,
         blocksize=blockchunks,
         blockoverlaps=blockoverlaps,
@@ -148,8 +149,13 @@ def distributed_eval(
         blocks_info,
     )
 
-    labels_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
-    labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    if (do_3D and len(image_shape) > 3 or 
+        not do_3D and len(image_shape) > 2):
+        labels_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
+        labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    else:
+        labels_shape = image_shape
+        labels_blocksize = blocksize
 
     labeled_blocks, labeled_blocks_info, max_label = _collect_labeled_blocks(
         segment_block_res,
@@ -225,6 +231,7 @@ def _segment_block(eval_method,
                    image_subpath=None,
                    data_timeindex=None,
                    data_channels=None,
+                   do_3D = True,
                    channel_axis=None,
                    blocksize=[],
                    blockoverlaps=[],
@@ -249,11 +256,18 @@ def _segment_block(eval_method,
         block_data = pp_step[0](block_data, **pp_step[1])
 
     labels = eval_method(block_index, block_data)
-    # labels are single channel so if the input was multichannel remove the channel coords
-    labels_index = [b for i, b in enumerate(block_index) if i != channel_axis]
-    labels_coords = [c for i, c in enumerate(block_coords) if i != channel_axis]
-    labels_overlaps = [o for i, o in enumerate(blockoverlaps) if i != channel_axis]
-    labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    if (do_3D and len(block_shape) > 3 or 
+        not do_3D and len(block_shape) > 2):
+        # labels are single channel so if the input was multichannel remove the channel coords
+        labels_index = [b for i, b in enumerate(block_index) if i != channel_axis]
+        labels_coords = [c for i, c in enumerate(block_coords) if i != channel_axis]
+        labels_overlaps = [o for i, o in enumerate(blockoverlaps) if i != channel_axis]
+        labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    else:
+        labels_index = block_index
+        labels_coords = block_coords
+        labels_overlaps = blockoverlaps
+        labels_blocksize = blocksize
 
     unique_labels_with_overlaps = np.unique(labels)
     labels, labels_coords = remove_overlaps(labels, labels_coords, labels_overlaps, labels_blocksize)
@@ -377,9 +391,19 @@ def _eval_model(block_index,
         "tile_norm_smooth3D": normalize_tile_norm_smooth3D,
         "invert": normalize_invert,
     }
-    logger.info(f'Normalize params: {normalize_params}')
-    block_data = transforms.normalize_img(block_data, axis=channel_axis,
-                                          **normalize_params)
+    if (do_3D and len(block_data.shape) == 3 or
+        not do_3D and len(block_data.shape) == 2):
+        # if 3D and the block has exactly 3 dimensions
+        # or in the case of 2D segmentation the block has exactly 2 dimensions
+        # reshape it to include a dimension for the channel
+        new_block_shape = (1,) + block_data.shape
+        logger.debug(f'Reshape block of {block_data.shape} to {new_block_shape}')
+        block_data = block_data.reshape(new_block_shape)
+
+    if normalize:
+        logger.info(f'Normalize params: {normalize_params}')
+        block_data = transforms.normalize_img(block_data, axis=channel_axis,
+                                              **normalize_params)
     labels = model.eval(block_data,
                         diameter=diameter,
                         min_size=min_size,

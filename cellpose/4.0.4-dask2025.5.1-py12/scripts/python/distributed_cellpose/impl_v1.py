@@ -151,8 +151,14 @@ def distributed_eval(
         image_shape, blocksize, blocksoverlap_arr, mask,
     )
 
-    segmentation_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
-    segmentation_block = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    if (do_3D and len(image_shape) > 3 or 
+        not do_3D and len(image_shape) > 2):
+        segmentation_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
+        segmentation_block = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    else:
+        segmentation_shape = image_shape
+        segmentation_block = blocksize
+
     segmentation_zarr_path = f'{output_dir}/segmentation.zarr'
     logger.info((
         f'Create temporary {segmentation_shape} labels '
@@ -234,9 +240,13 @@ def distributed_eval(
         f'Relabel {box_ids.shape} blocks of type {box_ids.dtype} - '
         f'use {len(faces)} faces for merging labels'
     ))
-    label_block_indices = []
-    for bi in block_indices:
-        label_block_indices.append(tuple([b for i,b in enumerate(bi) if i != channel_axis]))
+    if (do_3D and len(image_shape) > 3 or 
+        not do_3D and len(image_shape) > 2):
+        label_block_indices = []
+        for bi in block_indices:
+            label_block_indices.append(tuple([b for i,b in enumerate(bi) if i != channel_axis]))
+    else:
+        label_block_indices = block_indices
 
     new_labeling = determine_merge_relabeling(label_block_indices, faces, box_ids,
                                               label_dist_th=label_dist_th)
@@ -438,12 +448,20 @@ def process_block(
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
     )
-    # labels are single channel so if the input was multichannel remove the channel coords
-    labels_image_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
-    labels_block_index = [b for i, b in enumerate(block_index) if i != channel_axis]
-    labels_coords = [c for i, c in enumerate(crop) if i != channel_axis]
-    labels_overlaps = [o for i, o in enumerate(blocksoverlap) if i != channel_axis]
-    labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    if (do_3D and len(image_shape) > 3 or 
+        not do_3D and len(image_shape) > 2):
+        # labels are single channel so if the input was multichannel remove the channel coords
+        labels_image_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
+        labels_block_index = [b for i, b in enumerate(block_index) if i != channel_axis]
+        labels_coords = [c for i, c in enumerate(crop) if i != channel_axis]
+        labels_overlaps = [o for i, o in enumerate(blocksoverlap) if i != channel_axis]
+        labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    else:
+        labels_image_shape = image_shape
+        labels_block_index = block_index
+        labels_coords = crop
+        labels_overlaps = blocksoverlap
+        labels_blocksize = blocksize
 
     logger.debug((
         f'adjusted labels image shape to {labels_image_shape} '
@@ -555,9 +573,19 @@ def read_preprocess_and_segment(
         "tile_norm_smooth3D": normalize_tile_norm_smooth3D,
         "invert": normalize_invert,
     }
-    logger.info(f'Normalize params: {normalize_params}')
-    image_block = transforms.normalize_img(image_block, axis=channel_axis,
-                                           **normalize_params)
+    if (do_3D and len(image_block.shape) == 3 or
+        not do_3D and len(image_block.shape) == 2):
+        # if 3D and the block has exactly 3 dimensions
+        # or in the case of 2D segmentation the block has exactly 2 dimensions
+        # reshape it to include a dimension for the channel
+        new_block_shape = (1,) + image_block.shape
+        logger.debug(f'Reshape block of {image_block.shape} to {new_block_shape}')
+        image_block = image_block.reshape(new_block_shape)
+
+    if normalize:
+        logger.info(f'Normalize params: {normalize_params}')
+        image_block = transforms.normalize_img(image_block, axis=channel_axis,
+                                               **normalize_params)
     labels = model.eval(image_block,
                         diameter=diameter,
                         min_size=min_size,

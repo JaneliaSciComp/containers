@@ -45,6 +45,3 @@ distributed:
 
     profile:
       interval: 50ms # default 10ms
-
-    resources:
-      GPU: 1
