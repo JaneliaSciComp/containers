@@ -5,6 +5,8 @@ import traceback
 import io_utils.read_utils as read_utils
 import io_utils.write_utils as write_utils
 
+from cellpose.cli import get_arg_parser
+
 from dask.distributed import (Client, LocalCluster)
 
 from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_dt_merge)
@@ -31,21 +33,21 @@ def _inttuple(arg):
         return ()
 
 
-def _stringlist(arg):
-    if arg is not None and arg.strip():
-        return list(filter(lambda x: x, [s.strip() for s in arg.split(',')]))
-    else:
-        return []
-
 def _intlist(arg):
     if arg is not None and arg.strip():
         return [int(d) for d in arg.split(',')]
     else:
         return []
 
-def _define_args():
-    from cellpose.cli import get_arg_parser
 
+def _stringlist(arg):
+    if arg is not None and arg.strip():
+        return list(filter(lambda x: x, [s.strip() for s in arg.split(',')]))
+    else:
+        return []
+
+
+def _define_args():
     args_parser = get_arg_parser()
     args_parser.add_argument('-i','--input',
                              dest='input',
@@ -218,16 +220,17 @@ def _run_segmentation(args):
 
     if models_dir:
         from cellpose.models import get_user_models
+
         logger.info(f'Download cellpose models to {models_dir}')
         get_user_models()
 
     if args.dask_scheduler:
         dask_client = Client(address=args.dask_scheduler)
-        logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
     else:
         # use a local asynchronous client
         dask_client = Client(LocalCluster(n_workers=args.local_dask_workers))
 
+    logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
     worker_config = ConfigureWorkerPlugin(models_dir,
                                           args.logging_config,
                                           args.verbose,
@@ -241,7 +244,6 @@ def _run_segmentation(args):
     image_shape = image_data.shape
     image_dtype = image_data.dtype
     image_data = None
-
 
     if args.voxel_spacing:
         voxel_spacing = read_utils.get_voxel_spacing({}, args.voxel_spacing)
@@ -303,7 +305,7 @@ def _run_segmentation(args):
                 z_axis = args.z_axis
             else:
                 z_axis = 0 # default to first axis
-            if args.channel_axis is not None and args.channel_axis >= 0:
+            if args.channel_axis is not None:
                 channel_axis = args.channel_axis
             else:
                 channel_axis = None

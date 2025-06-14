@@ -85,7 +85,7 @@ def distributed_eval(
     timeindex : string
         if the image is a 5-D TCZYX ndarray specify which timeindex to use
 
-    channels : string
+    image_channels : sequence[int] | None
         if the image is a multichannel image specify which channels to use
                 
     blocksize : iterable
@@ -663,8 +663,8 @@ def global_segment_ids(segmentation, block_index, nblocks):
     remap = [int(p+str(x).zfill(5)) for x in unique]
     if unique[0] == 0:
         remap[0] = 0  # 0 should just always be 0
-    segmentation = np.array(remap, dtype=np.uint32)[unique_inverse.reshape(segmentation.shape)]
     logger.debug(f'Remap: {remap}')
+    segmentation = np.array(remap, dtype=np.uint32)[unique_inverse.reshape(segmentation.shape)]
     return segmentation, remap
 
 
