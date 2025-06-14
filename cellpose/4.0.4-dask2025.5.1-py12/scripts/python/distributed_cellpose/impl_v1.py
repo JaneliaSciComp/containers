@@ -135,6 +135,13 @@ def distributed_eval(
         tuple in the list.
     """
     image_ndim = len(image_shape)
+    logger.info((
+        f'Segment {image_container_path}:{image_subpath} '
+        f'shape: {image_shape}, '
+        f'process blocks: {blocksize} '
+        f'timeindex: {timeindex} '
+        f'image channels {image_channels} '
+    ))
     # check blocksoverlap
     if blocksoverlap is None or blocksoverlap == ():
         blocksoverlap = [int(s * 0.1) for s in blocksize]
@@ -526,6 +533,8 @@ def read_preprocess_and_segment(
     logger.info((
         f'Reading {crop} block from '
         f'{image_container_path}:{image_subpath} '
+        f'timeindex {data_timeindex} '
+        f'channels {data_channels} '
     ))
     image_block, _ = read_utils.open(image_container_path, image_subpath,
                                      data_timeindex=data_timeindex,

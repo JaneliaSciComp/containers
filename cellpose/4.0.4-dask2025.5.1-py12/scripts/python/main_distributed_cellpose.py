@@ -277,7 +277,7 @@ def _run_segmentation(args):
             blocks_overlaps = ()
 
         try:
-            logger.info(f'Invoke segmentation with blocksize {process_blocksize}')
+            logger.info(f'Invoke segmentation for {image_shape} with process blocksize {process_blocksize}', flush=True)
             if (args.merge_labels_with_iou):
                 distributed_eval_method = eval_with_iou_merge
             else:
