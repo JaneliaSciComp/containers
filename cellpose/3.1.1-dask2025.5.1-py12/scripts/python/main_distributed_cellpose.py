@@ -5,9 +5,8 @@ import traceback
 import io_utils.read_utils as read_utils
 import io_utils.write_utils as write_utils
 
-from cellpose import version_str as cellpose_version
-from cellpose.models import get_user_models
 from cellpose.cli import get_arg_parser
+
 from dask.distributed import (Client, LocalCluster)
 
 from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_dt_merge)
@@ -34,6 +33,13 @@ def _inttuple(arg):
         return ()
 
 
+def _intlist(arg):
+    if arg is not None and arg.strip():
+        return [int(d) for d in arg.split(',')]
+    else:
+        return []
+
+
 def _stringlist(arg):
     if arg is not None and arg.strip():
         return list(filter(lambda x: x, [s.strip() for s in arg.split(',')]))
@@ -51,10 +57,15 @@ def _define_args():
                              dest='input_subpath',
                              type=str,
                              help = "input subpath")
-    args_parser.add_argument('--input-subpath-pattern',
-                             dest='input_subpath_pattern',
-                             type=str,
-                             help = "input subpath pattern")
+    args_parser.add_argument('--timeindex',
+                             dest='input_timeindex',
+                             type=int,
+                             default=0,
+                             help = "input time index")
+    args_parser.add_argument('--input-channels', '--input_channels',
+                             dest='input_channels',
+                             type=_intlist,
+                             help = "input segmentation channels")
 
     args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
                              dest='voxel_spacing',
@@ -88,7 +99,7 @@ def _define_args():
                              type=_inttuple,
                              help='Output chunk size as a tuple (x,y,z).')
 
-    args_parser.add_argument('--working-dir',
+    args_parser.add_argument('--working-dir', '--working_dir',
                              dest='working_dir',
                              default='.',
                              type=str,
@@ -133,13 +144,19 @@ def _define_args():
                                   dest='dask_config',
                                   type=str, default=None,
                                   help='Dask configuration yaml file')
-    distributed_args.add_argument('--worker-cpus', dest='worker_cpus',
+    distributed_args.add_argument('--local-dask-workers', '--local_dask_workers',
+                                  dest='local_dask_workers',
+                                  type=int, default=1,
+                                  help='Number of workers when using a local cluster')
+    distributed_args.add_argument('--worker-cpus', '--worker_cpus',
+                                  dest='worker_cpus',
                                   type=int, default=0,
                                   help='Number of cpus allocated to a dask worker')
     distributed_args.add_argument('--device', required=False, default='0', type=str,
                                   dest='device',
                                   help='which device to use, use an integer for torch, or mps for M1')    
-    distributed_args.add_argument('--models-dir', dest='models_dir',
+    distributed_args.add_argument('--models-dir', '--models_dir',
+                                  dest='models_dir',
                                   type=str,
                                   help='cache cellpose models directory')
     distributed_args.add_argument('--model',
@@ -167,7 +184,7 @@ def _define_args():
                                   dest='save_intermediate_labels',
                                   default=False,
                                   help='Save intermediate labels as zarr')
-    distributed_args.add_argument('--merge-labels-iou-only',
+    distributed_args.add_argument('--merge-labels-iou-only', '--merge_labels_iou_only',
                                   action='store_true',
                                   dest='merge_labels_with_iou',
                                   default=False,
@@ -202,24 +219,27 @@ def _run_segmentation(args):
         models_dir = None
 
     if models_dir:
+        from cellpose.models import get_user_models
+
         logger.info(f'Download cellpose models to {models_dir}')
         get_user_models()
+
+    if args.dask_scheduler:
+        dask_client = Client(address=args.dask_scheduler)
+    else:
+        # use a local asynchronous client
+        dask_client = Client(LocalCluster(n_workers=args.local_dask_workers))
 
     logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
     worker_config = ConfigureWorkerPlugin(models_dir,
                                           args.logging_config,
                                           args.verbose,
                                           worker_cpus=args.worker_cpus)
-
-    if args.dask_scheduler:
-        dask_client = Client(address=args.dask_scheduler)
-        dask_client.register_plugin(worker_config, name='WorkerConfig')
-    else:
-        # use a local asynchronous client
-        dask_client = Client(LocalCluster())
+    dask_client.register_plugin(worker_config, name='WorkerConfig')
 
     image_data, image_attrs = read_utils.open(args.input, args.input_subpath,
-                                              subpath_pattern=args.input_subpath_pattern)
+                                              data_timeindex=args.input_timeindex,
+                                              data_channels=args.input_channels)
     image_ndim = image_data.ndim
     image_shape = image_data.shape
     image_dtype = image_data.dtype
@@ -242,22 +262,18 @@ def _run_segmentation(args):
     if args.output:
         output_subpath = args.output_subpath if args.output_subpath else args.input_subpath
 
-        if (args.output_blocksize is not None and
-            len(args.output_blocksize) == image_ndim):
-            zyx_blocksize = args.output_blocksize[::-1] # make it zyx
-            output_blocks = tuple([d if d > 0 else image_shape[di] 
-                                   for di,d in enumerate(zyx_blocksize)])
-        else:
-            # default to output_chunk_size
-            output_blocks = (args.output_chunk_size,) * image_ndim
-
-        if (args.process_blocksize is not None and
-            len(args.process_blocksize) == image_ndim):
-            zyx_process_size = args.process_blocksize[::-1] # make it zyx
-            process_blocksize = tuple([d if d > 0 else image_shape[di] 
+        if args.process_blocksize is not None:
+            if len(args.process_blocksize) < image_ndim:
+                # append 0s
+                process_blocksize_arg = (args.process_blocksize +
+                                        (0,) * (image_ndim - len(args.process_blocksize)))
+            else:
+                process_blocksize_arg = args.process_blocksize
+            zyx_process_size = process_blocksize_arg[::-1] # make it zyx
+            process_blocksize = tuple([d if d > 0 else image_shape[di]
                                         for di,d in enumerate(zyx_process_size)])
         else:
-            process_blocksize = output_blocks
+            process_blocksize = image_shape # process the whole image
 
         if (args.blocks_overlaps is not None and
             len(args.blocks_overlaps) > 0):
@@ -271,7 +287,7 @@ def _run_segmentation(args):
             eval_channels = None
 
         try:
-            logger.info(f'Invoke segmentation with blocksize {process_blocksize}')
+            logger.info(f'Invoke segmentation for {image_shape} with process blocksize {process_blocksize}')
             if (args.merge_labels_with_iou):
                 distributed_eval_method = eval_with_iou_merge
             else:
@@ -294,7 +310,7 @@ def _run_segmentation(args):
                 z_axis = args.z_axis
             else:
                 z_axis = 0 # default to first axis
-            if args.channel_axis is not None and args.channel_axis >= 0:
+            if args.channel_axis is not None:
                 channel_axis = args.channel_axis
             else:
                 channel_axis = None
@@ -303,6 +319,8 @@ def _run_segmentation(args):
                 args.input,
                 args.input_subpath,
                 image_shape,
+                args.input_timeindex,
+                args.input_channels,
                 args.segmentation_model,
                 args.diam_mean,
                 process_blocksize,
@@ -318,7 +336,6 @@ def _run_segmentation(args):
                 z_axis=z_axis,
                 channel_axis=channel_axis,
                 eval_channels=eval_channels,
-                use_torch=args.use_gpu,
                 use_gpu=args.use_gpu,
                 gpu_device=args.gpu_device,
                 iou_depth=args.iou_depth,
@@ -330,9 +347,25 @@ def _run_segmentation(args):
             )
 
             labels_attributes = prepare_attrs(output_subpath,
-                                              image_attrs,
+                                              axes=image_attrs.get('axes'),
+                                              coordinateTransformations=image_attrs.get('coordinateTransformations'),
                                               pixelResolution=image_attrs.get('pixelResolution'),
                                               downsamplingFactors=image_attrs.get('downsamplingFactors'))
+
+            if args.output_blocksize is not None:
+                if len(args.output_blocksize) < output_labels.ndim:
+                    # append 0s
+                    output_blocksize_arg = (args.output_blocksize +
+                                            (0,) * (output_labels.ndim - len(args.output_blocksize)))
+                else:
+                    output_blocksize_arg = args.output_blocksize
+                zyx_blocksize = output_blocksize_arg[::-1] # make it zyx
+                output_blocks = tuple([d if d > 0 else output_labels.shape[di]
+                                    for di,d in enumerate(zyx_blocksize)])
+            else:
+                # default to output_chunk_size
+                output_blocks = (args.output_chunk_size,) * output_labels.ndim
+
             persisted_labels = write_utils.save(
                 output_labels, args.output, output_subpath,
                 blocksize=output_blocks,
@@ -340,8 +373,8 @@ def _run_segmentation(args):
             )
 
             if persisted_labels is not None:
-                _ = dask_client.compute(persisted_labels).result()
-                logger.info('DONE!')
+                r = dask_client.compute(persisted_labels).result()
+                logger.info(f'DONE ({r})!')
             else:
                 logger.warning('No segmentation labels were generated')
 
@@ -352,6 +385,8 @@ def _run_segmentation(args):
 
 
 def _print_version_and_exit():
+    from cellpose import version_str as cellpose_version
+
     print(cellpose_version)
     sys.exit(0)
 

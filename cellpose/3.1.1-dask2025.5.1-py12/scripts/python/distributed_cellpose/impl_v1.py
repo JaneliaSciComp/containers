@@ -8,9 +8,12 @@ import logging
 import numpy as np
 import scipy
 import time
+import torch
 
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
+
+from .block_utils import (get_block_crops, get_nblocks, remove_overlaps)
 
 
 logger = logging.getLogger(__name__)
@@ -20,6 +23,8 @@ def distributed_eval(
         image_container_path,
         image_subpath,
         image_shape,
+        timeindex,
+        image_channels,
         model_type,
         diameter,
         blocksize,
@@ -28,7 +33,6 @@ def distributed_eval(
         blocksoverlap=(),
         mask=None,
         preprocessing_steps=[],
-        use_torch=False,
         use_gpu=False,
         gpu_device=None,
         eval_channels=None,
@@ -68,6 +72,12 @@ def distributed_eval(
     image_shape : tuple
         Image shape in voxels. E.g. (512, 1024, 1024)
 
+    timeindex : string
+        if the image is a 5-D TCZYX ndarray specify which timeindex to use
+
+    image_channels : sequence[int] | None
+        if the image is a multichannel image specify which channels to use
+                
     blocksize : iterable
         The size of blocks in voxels. E.g. [128, 256, 256]
 
@@ -118,6 +128,13 @@ def distributed_eval(
         # always specify the diameter
         diameter = 30
     image_ndim = len(image_shape)
+    logger.info((
+        f'Segment {image_container_path}:{image_subpath} '
+        f'shape: {image_shape}, '
+        f'process blocks: {blocksize} '
+        f'timeindex: {timeindex} '
+        f'image channels {image_channels} '
+    ))
     # check blocksoverlap
     if blocksoverlap is None:
         blocksoverlap = (int(diameter*2),) * image_ndim
@@ -134,13 +151,25 @@ def distributed_eval(
         image_shape, blocksize, blocksoverlap_arr, mask,
     )
 
-    segmentation_zarr_container = f'{output_dir}/segmentation.zarr'
+    if (do_3D and len(image_shape) > 3 or 
+        not do_3D and len(image_shape) > 2):
+        segmentation_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
+        segmentation_block = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    else:
+        segmentation_shape = image_shape
+        segmentation_block = blocksize
+
+    segmentation_zarr_path = f'{output_dir}/segmentation.zarr'
+    logger.info((
+        f'Create temporary {segmentation_shape} labels '
+        f'at {segmentation_zarr_path} with {segmentation_block} chunks'
+    ))
 
     labels_zarr = zarr_utils.create_dataset(
-        segmentation_zarr_container,
+        segmentation_zarr_path,
         'block_labels',
-        image_shape,
-        blocksize,
+        segmentation_shape,
+        segmentation_block,
         np.uint32,
         data_store_name='zarr',
     )
@@ -153,12 +182,13 @@ def distributed_eval(
         image_container_path=image_container_path,
         image_subpath=image_subpath,
         image_shape=image_shape,
+        data_timeindex=timeindex,
+        data_channels=image_channels,
         blocksize=blocksize,
         blocksoverlap=blocksoverlap_arr,
         labels_output_zarr=labels_zarr,
         preprocessing_steps=preprocessing_steps,
         model_type=model_type,
-        use_torch=use_torch,
         use_gpu=use_gpu,
         gpu_device=gpu_device,
         diameter=diameter,
@@ -202,7 +232,15 @@ def distributed_eval(
         f'Relabel {box_ids.shape} blocks of type {box_ids.dtype} - '
         f'use {len(faces)} faces for merging labels'
     ))
-    new_labeling = determine_merge_relabeling(block_indices, faces, box_ids,
+    if (do_3D and len(image_shape) > 3 or 
+        not do_3D and len(image_shape) > 2):
+        label_block_indices = []
+        for bi in block_indices:
+            label_block_indices.append(tuple([b for i,b in enumerate(bi) if i != channel_axis]))
+    else:
+        label_block_indices = block_indices
+
+    new_labeling = determine_merge_relabeling(label_block_indices, faces, box_ids,
                                               label_dist_th=label_dist_th)
     new_labeling_path = f'{output_dir}/new_labeling.npy'
     np.save(new_labeling_path, new_labeling)
@@ -225,14 +263,13 @@ def process_block(
     image_container_path,
     image_subpath,
     image_shape,
+    data_timeindex,
+    data_channels,
     blocksize,
     blocksoverlap,
     labels_output_zarr,
     preprocessing_steps=[],
-    model_type='cyto3',
-    use_torch=False,
-    use_gpu=False,
-    gpu_device=None,
+    model_type=None,
     diameter=30,
     eval_channels=None,
     do_3D=True,
@@ -244,6 +281,9 @@ def process_block(
     flow_threshold=0.4,
     cellprob_threshold=0,
     stitch_threshold=0,
+    flow3D_smooth=1,
+    use_gpu=False,
+    gpu_device=None,
     gpu_batch_size=8,
     test_mode=False,
 ):
@@ -366,12 +406,11 @@ def process_block(
     segmentation = read_preprocess_and_segment(
         image_container_path, 
         image_subpath, 
+        data_timeindex,
+        data_channels,
         crop, 
         preprocessing_steps,
         model_type=model_type,
-        use_torch=use_torch,
-        use_gpu=use_gpu,
-        gpu_device=gpu_device,
         diameter=diameter,
         eval_channels=eval_channels,
         z_axis=z_axis,
@@ -383,6 +422,9 @@ def process_block(
         flow_threshold=flow_threshold,
         cellprob_threshold=cellprob_threshold,
         stitch_threshold=stitch_threshold,
+        flow3D_smooth=flow3D_smooth,
+        use_gpu=use_gpu,
+        gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
     )
     segmentation, crop = remove_overlaps(segmentation, crop, blocksoverlap, blocksize)
@@ -405,13 +447,12 @@ def process_block(
 def read_preprocess_and_segment(
     image_container_path,
     image_subpath,
+    data_timeindex,
+    data_channels,
     crop,
     preprocessing_steps,
     # model_kwargs,
     model_type='cyto3',
-    use_torch=False,
-    use_gpu=False,
-    gpu_device=None,
     # eval_kwargs
     diameter=30,
     eval_channels=None,
@@ -424,14 +465,21 @@ def read_preprocess_and_segment(
     flow_threshold=0.4,
     cellprob_threshold=0,
     stitch_threshold=0,
+    flow3D_smooth=1,
+    use_gpu=False,
+    gpu_device=None,
     gpu_batch_size=8,
 ):
     """Read block from zarr array, run all preprocessing steps, run cellpose"""
     logger.info((
         f'Reading {crop} block from '
         f'{image_container_path}:{image_subpath} '
+        f'timeindex {data_timeindex} '
+        f'channels {data_channels} '
     ))
     image_block, _ = read_utils.open(image_container_path, image_subpath,
+                                     data_timeindex=data_timeindex,
+                                     data_channels=data_channels,
                                      block_coords=crop)
 
     start_time = time.time()
@@ -440,12 +488,50 @@ def read_preprocess_and_segment(
         logger.debug(f'Apply preprocessing step: {pp_step}')
         image_block = pp_step[0](image_block, **pp_step[1])
 
-    segmentation_device, gpu = cellpose.models.assign_device(use_torch=use_torch,
-                                                             gpu=use_gpu,
-                                                             device=gpu_device)
+    if use_gpu:
+        available_gpus = torch.cuda.device_count()
+        logger.info(f'Found {available_gpus} GPUs')
+        if available_gpus > 1:
+            # if multiple gpus are available try to find one that can be used
+            segmentation_device, gpu = None, False
+            for gpui in range(available_gpus):
+                try:
+                    logger.debug(f'Try GPU: {gpui}')
+                    segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
+                                                                             device=gpui)
+                    logger.debug(f'Result for GPU: {gpui} => {segmentation_device}:{gpu}')
+                    if gpu:
+                        break
+                    # because of a bug in cellpose trying the other devices explicitly here
+                    torch.cuda.set_device(gpui)
+                    segmentation_device = torch.device(f'cuda:{gpui}')
+                    logger.info(f'Device {segmentation_device} present and usable')
+                    _ = torch.zeros((1,1)).to(segmentation_device)
+                    logger.info(f'Device {segmentation_device} tested and it is usable')
+                    gpu = True
+                    break
+                except Exception as e:
+                    logger.warning(f'cuda:{gpui} present but not usable: {e}')
+        else:
+            segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
+                                                                     device=gpu_device)
+    else:
+        segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
+                                                                device=gpu_device)
+    logger.info(f'Segmentation device for block {crop}: {segmentation_device}:{gpu}')
     model = cellpose.models.CellposeModel(gpu=gpu,
                                           model_type=model_type,
                                           device=segmentation_device)
+
+    if (do_3D and len(image_block.shape) == 3 or
+        not do_3D and len(image_block.shape) == 2):
+        # if 3D and the block has exactly 3 dimensions
+        # or in the case of 2D segmentation the block has exactly 2 dimensions
+        # reshape it to include a dimension for the channel
+        new_block_shape = (1,) + image_block.shape
+        logger.debug(f'Reshape block of {image_block.shape} to {new_block_shape}')
+        image_block = image_block.reshape(new_block_shape)
+
     labels = model.eval(image_block,
                         channels=eval_channels,
                         diameter=diameter,
@@ -459,7 +545,7 @@ def read_preprocess_and_segment(
                         cellprob_threshold=cellprob_threshold,
                         stitch_threshold=stitch_threshold,
                         batch_size=gpu_batch_size,
-                        flow3D_smooth=1,
+                        flow3D_smooth=flow3D_smooth,
                         )[0].astype(np.uint32)
     end_time = time.time()
     unique_labels = np.unique(labels)
@@ -469,87 +555,6 @@ def read_preprocess_and_segment(
         f'in {end_time-start_time}s '
     ))
     return labels
-
-
-def get_block_crops(shape, blocksize, overlaps, mask):
-    """
-    Given a voxel grid shape, blocksize, and overlap size, construct
-       tuples of slices for every block; optionally only include blocks
-       that contain foreground in the mask. Returns parallel lists,
-       the block indices and the slice tuples.
-    """
-    blocksize = np.array(blocksize, dtype=int)
-    blockoverlaps = np.array(overlaps, dtype=int)
-
-    if mask is not None:
-        ratio = np.array(mask.shape) / shape
-        mask_blocksize = np.round(ratio * blocksize).astype(int)
-
-    indices, crops = [], []
-    nblocks = get_nblocks(shape, blocksize)
-    for index in np.ndindex(*nblocks):
-        start = blocksize * index - blockoverlaps
-        stop = start + blocksize + 2 * blockoverlaps
-        start = np.maximum(0, start)
-        stop = np.minimum(shape, stop)
-        crop = tuple(slice(x, y) for x, y in zip(start, stop))
-
-        foreground = True
-        if mask is not None:
-            start = mask_blocksize * index
-            stop = start + mask_blocksize
-            stop = np.minimum(mask.shape, stop)
-            mask_crop = tuple(slice(x, y) for x, y in zip(start, stop))
-            if not np.any(mask[mask_crop]):
-                foreground = False
-        if foreground:
-            indices.append(index)
-            crops.append(crop)
-    return indices, crops
-
-
-def get_nblocks(shape, blocksize):
-    """Given a shape and blocksize determine the number of blocks per axis"""
-    return np.ceil(np.array(shape) / blocksize).astype(int)
-
-
-def remove_overlaps(array, crop, overlaps, blocksize):
-    """
-    Overlaps are only there to provide context for boundary voxels
-    and can be removed after segmentation is complete
-    reslice array to remove the overlaps
-    """
-    logger.debug((
-        f'Remove overlaps: {overlaps} '
-        f'crop: {crop} '
-        f'blocksize is {blocksize} '
-        f'block shape: {array.shape} '
-    ))
-    crop_trimmed = list(crop)
-    for axis in range(array.ndim):
-        if crop[axis].start != 0:
-            slc = [slice(None),]*array.ndim
-            slc[axis] = slice(overlaps[axis], None)
-            loverlap_index = tuple(slc)
-            logger.debug((
-                f'Remove left overlap on axis {axis}: {loverlap_index} ({type(loverlap_index)}) '
-                f'from labeled block of shape: {array.shape} '
-            ))
-            array = array[loverlap_index]
-            a, b = crop[axis].start, crop[axis].stop
-            crop_trimmed[axis] = slice(a + overlaps[axis], b)
-        if array.shape[axis] > blocksize[axis]:
-            slc = [slice(None),]*array.ndim
-            slc[axis] = slice(None, blocksize[axis])
-            roverlap_index = tuple(slc)
-            logger.debug((
-                f'Remove right overlap on axis {axis}: {roverlap_index} ({type(roverlap_index)}) '
-                f'from labeled block of shape: {array.shape} '
-            ))
-            array = array[roverlap_index]
-            a = crop_trimmed[axis].start
-            crop_trimmed[axis] = slice(a, a + blocksize[axis])
-    return array, crop_trimmed
 
 
 def bounding_boxes_in_global_coordinates(segmentation, crop):
@@ -578,14 +583,14 @@ def global_segment_ids(segmentation, block_index, nblocks):
     """
     unique, unique_inverse = np.unique(segmentation, return_inverse=True)
     logger.debug((
-        f'Block {block_index} '
-        f'- start at: {nblocks} '
-        f'- found {len(unique)} unique labels'
+        f'Block {block_index} out of {nblocks} '
+        f'- has {len(unique)} unique labels '
     ))
     p = str(np.ravel_multi_index(block_index, nblocks))
     remap = [int(p+str(x).zfill(5)) for x in unique]
     if unique[0] == 0:
         remap[0] = 0  # 0 should just always be 0
+    logger.debug(f'Remap: {remap}')
     segmentation = np.array(remap, dtype=np.uint32)[unique_inverse.reshape(segmentation.shape)]
     return segmentation, remap
 
