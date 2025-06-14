@@ -23,7 +23,8 @@ def create_dataset(data_path, data_subpath, shape, chunks, dtype,
             ))
             root_group = zarr.open_group(store=data_store, mode='a')
             if _is_ome_zarr(container_attributes):
-                root_group.attributes = container_attributes
+                root_group.attrs['bioformats2raw.layout'] = 3
+
                 ome_metadata = ImageAttrs(**container_attributes)
                 datagroup_subpath, dataset_subpath = _get_dataset_subpath(data_subpath,
                                                                           ome_metadata.multiscales[0])

@@ -149,7 +149,7 @@ def distributed_eval(
         blocks_info,
     )
 
-    if (do_3D and len(image_shape) > 3 or 
+    if (do_3D and len(image_shape) > 3 or
         not do_3D and len(image_shape) > 2):
         labels_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
         labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
@@ -215,7 +215,7 @@ def _read_block_data(block_info, image_container_path, image_subpath=None,
     block_index, block_coords = block_info
     logger.info((
         f'Get block: {block_index} at {block_coords} from '
-        f'{image_container_path}:{image_subpath} '
+        f'{image_container_path}:{image_subpath}:{data_timeindex}:{data_channels} '
     ))
     block_data, _ = read_utils.open(image_container_path, image_subpath,
                                     data_timeindex=data_timeindex,
@@ -256,7 +256,7 @@ def _segment_block(eval_method,
         block_data = pp_step[0](block_data, **pp_step[1])
 
     labels = eval_method(block_index, block_data)
-    if (do_3D and len(block_shape) > 3 or 
+    if (do_3D and len(block_shape) > 3 or
         not do_3D and len(block_shape) > 2):
         # labels are single channel so if the input was multichannel remove the channel coords
         labels_index = [b for i, b in enumerate(block_index) if i != channel_axis]
