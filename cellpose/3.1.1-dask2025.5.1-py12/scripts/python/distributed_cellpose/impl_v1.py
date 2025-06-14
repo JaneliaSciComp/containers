@@ -427,14 +427,37 @@ def process_block(
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
     )
-    segmentation, crop = remove_overlaps(segmentation, crop, blocksoverlap, blocksize)
-    boxes = bounding_boxes_in_global_coordinates(segmentation, crop)
-    nblocks = get_nblocks(image_shape, blocksize)
-    segmentation, remap = global_segment_ids(segmentation, block_index, nblocks)
+    if (do_3D and len(image_shape) > 3 or
+        not do_3D and len(image_shape) > 2):
+        # labels are single channel so if the input was multichannel remove the channel coords
+        labels_image_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
+        labels_block_index = [b for i, b in enumerate(block_index) if i != channel_axis]
+        labels_coords = [c for i, c in enumerate(crop) if i != channel_axis]
+        labels_overlaps = [o for i, o in enumerate(blocksoverlap) if i != channel_axis]
+        labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+    else:
+        labels_image_shape = image_shape
+        labels_block_index = block_index
+        labels_coords = crop
+        labels_overlaps = blocksoverlap
+        labels_blocksize = blocksize
+
+    logger.debug((
+        f'adjusted labels image shape to {labels_image_shape} '
+        f'labels block index to {labels_block_index} '
+        f'labels block coords to {labels_coords} '
+        f'labels block overlaps to {labels_overlaps} '
+        f'labels block size to {labels_blocksize} '
+    ))
+    logger.debug(f'Segmented block shape before removing overlaps: {segmentation.shape}')
+    segmentation, labels_coords = remove_overlaps(segmentation, labels_coords, labels_overlaps, labels_blocksize)
+    boxes = bounding_boxes_in_global_coordinates(segmentation, labels_coords)
+    nblocks = get_nblocks(labels_image_shape, labels_blocksize)
+    segmentation, remap = global_segment_ids(segmentation, labels_block_index, nblocks)
     if remap[0] == 0:
         remap = remap[1:]
 
-    labels_output_zarr[tuple(crop)] = segmentation
+    labels_output_zarr[tuple(labels_coords)] = segmentation
 
     if test_mode:
         return segmentation, boxes, remap
