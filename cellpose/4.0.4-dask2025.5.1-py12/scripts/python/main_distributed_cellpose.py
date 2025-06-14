@@ -60,7 +60,7 @@ def _define_args():
                              type=int,
                              default=0,
                              help = "input time index")
-    args_parser.add_argument('--input-channels',
+    args_parser.add_argument('--input-channels', '--input_channels',
                              dest='input_channels',
                              type=_intlist,
                              help = "input segmentation channels")
@@ -97,7 +97,7 @@ def _define_args():
                              type=_inttuple,
                              help='Output chunk size as a tuple (x,y,z).')
 
-    args_parser.add_argument('--working-dir',
+    args_parser.add_argument('--working-dir', '--working_dir',
                              dest='working_dir',
                              default='.',
                              type=str,
@@ -142,16 +142,19 @@ def _define_args():
                                   dest='dask_config',
                                   type=str, default=None,
                                   help='Dask configuration yaml file')
-    distributed_args.add_argument('--local-dask-workers', dest='local_dask_workers',
+    distributed_args.add_argument('--local-dask-workers', '--local_dask_workers',
+                                  dest='local_dask_workers',
                                   type=int, default=1,
                                   help='Number of workers when using a local cluster')
-    distributed_args.add_argument('--worker-cpus', dest='worker_cpus',
+    distributed_args.add_argument('--worker-cpus', '--worker_cpus',
+                                  dest='worker_cpus',
                                   type=int, default=0,
                                   help='Number of cpus allocated to a dask worker')
     distributed_args.add_argument('--device', required=False, default='0', type=str,
                                   dest='device',
                                   help='which device to use, use an integer for torch, or mps for M1')    
-    distributed_args.add_argument('--models-dir', dest='models_dir',
+    distributed_args.add_argument('--models-dir', '--models_dir',
+                                  dest='models_dir',
                                   type=str,
                                   help='cache cellpose models directory')
     distributed_args.add_argument('--model',
@@ -179,7 +182,7 @@ def _define_args():
                                   dest='save_intermediate_labels',
                                   default=False,
                                   help='Save intermediate labels as zarr')
-    distributed_args.add_argument('--merge-labels-iou-only',
+    distributed_args.add_argument('--merge-labels-iou-only', '--merge_labels_iou_only',
                                   action='store_true',
                                   dest='merge_labels_with_iou',
                                   default=False,
