@@ -455,7 +455,7 @@ def process_block(
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
     )
-    if (do_3D and len(image_shape) > 3 or 
+    if (do_3D and len(image_shape) > 3 or
         not do_3D and len(image_shape) > 2):
         # labels are single channel so if the input was multichannel remove the channel coords
         labels_image_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
@@ -479,7 +479,6 @@ def process_block(
     ))
     logger.debug(f'Segmented block shape before removing overlaps: {segmentation.shape}')
     segmentation, labels_coords = remove_overlaps(segmentation, labels_coords, labels_overlaps, labels_blocksize)
-    logger.debug(f'Segmented block shape after removing overlaps: {segmentation.shape}')
     boxes = bounding_boxes_in_global_coordinates(segmentation, labels_coords)
     nblocks = get_nblocks(labels_image_shape, labels_blocksize)
     segmentation, remap = global_segment_ids(segmentation, labels_block_index, nblocks)
