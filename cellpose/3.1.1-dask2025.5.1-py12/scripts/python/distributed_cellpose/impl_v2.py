@@ -17,11 +17,11 @@ import traceback
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
 
-from cellpose import transforms
 from dask.distributed import as_completed
 from sklearn import metrics as sk_metrics
 
-from .block_utils import (get_block_crops, get_nblocks, remove_overlaps)
+from .block_utils import (get_block_crops, get_nblocks,
+                          compute_block_anisotropy, remove_overlaps)
 
 
 logger = logging.getLogger(__name__)
@@ -204,12 +204,12 @@ def _read_block_data(block_info, image_container_path, image_subpath=None,
         f'Get block: {block_index} at {block_coords} from '
         f'{image_container_path}:{image_subpath}:{data_timeindex}:{data_channels} '
     ))
-    block_data, _ = read_utils.open(image_container_path, image_subpath,
-                                    data_timeindex=data_timeindex,
-                                    data_channels=data_channels,
-                                    block_coords=block_coords)
-    logger.info(f'Retrieved block {block_index} of shape {block_data.shape}')
-    return block_data
+    block_data, block_attrs = read_utils.open(image_container_path, image_subpath,
+                                              data_timeindex=data_timeindex,
+                                              data_channels=data_channels,
+                                              block_coords=block_coords)
+    logger.info(f'Retrieved block {block_index} of shape {block_data.shape} with {block_attrs}')
+    return block_data, block_attrs
 
 
 def _segment_block(eval_method,
@@ -234,16 +234,17 @@ def _segment_block(eval_method,
         f'block shape: {block_shape} '
     ))
 
-    block_data = _read_block_data(block_info, image_container_path,
-                                  image_subpath=image_subpath,
-                                  data_timeindex=data_timeindex,
-                                  data_channels=data_channels)
+    block_data, block_attrs = _read_block_data(block_info, image_container_path,
+                                               image_subpath=image_subpath,
+                                               data_timeindex=data_timeindex,
+                                               data_channels=data_channels)
     # preprocess
     for pp_step in preprocessing_steps:
         logger.debug(f'Apply preprocessing step: {pp_step}')
         block_data = pp_step[0](block_data, **pp_step[1])
 
-    labels = eval_method(block_index, block_data)
+    labels = eval_method(block_index, block_data, block_attrs)
+
     if (do_3D and len(block_shape) > 3 or
         not do_3D and len(block_shape) > 2):
         # labels are single channel so if the input was multichannel remove the channel coords
@@ -300,6 +301,7 @@ def _segment_block(eval_method,
 
 def _eval_model(block_index,
                 block_data,
+                block_attrs,
                 model_type=None,
                 eval_channels=None,
                 do_3D=True,
@@ -384,6 +386,10 @@ def _eval_model(block_index,
         new_block_shape = (1,) + block_data.shape
         logger.debug(f'Reshape block of {block_data.shape} to {new_block_shape}')
         block_data = block_data.reshape(new_block_shape)
+
+    if anisotropy is None or anisotropy == 1:
+        # try to compute it from block's attributes
+        anisotropy = compute_block_anisotropy(block_attrs)
 
     labels = model.eval(block_data,
                         channels=eval_channels,

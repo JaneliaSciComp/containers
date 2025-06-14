@@ -1,6 +1,9 @@
 import logging
 import numpy as np
 
+import io_utils.read_utils as read_utils
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,3 +91,15 @@ def remove_overlaps(array, crop, overlaps, blocksize):
             a = crop_trimmed[axis].start
             crop_trimmed[axis] = slice(a, a + blocksize[axis])
     return array, crop_trimmed
+
+
+def compute_block_anisotropy(block_attrs:dict|None):
+    if block_attrs is None:
+        return 1.0
+
+    voxel_spacing = read_utils.get_voxel_spacing(block_attrs)
+    if voxel_spacing is None:
+        return 1.0
+    else:
+        z, y, _ = voxel_spacing
+        return z / y

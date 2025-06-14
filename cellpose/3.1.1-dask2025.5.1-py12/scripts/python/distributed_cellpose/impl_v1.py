@@ -13,7 +13,8 @@ import torch
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
 
-from .block_utils import (get_block_crops, get_nblocks, remove_overlaps)
+from .block_utils import (get_block_crops, get_nblocks, 
+                          compute_block_anisotropy, remove_overlaps)
 
 
 logger = logging.getLogger(__name__)
@@ -174,7 +175,9 @@ def distributed_eval(
         data_store_name='zarr',
     )
 
-    logger.info(f'Start segmenting: {len(block_indices)} {blocksize} blocks with overlap {blocksoverlap}')
+    logger.info(
+        f'Start segmenting: ({len(block_indices)}, {len(block_crops)}) '
+        f'{blocksize} blocks with overlap {blocksoverlap}')
     futures = dask_client.map(
         process_block,
         block_indices,
@@ -500,10 +503,13 @@ def read_preprocess_and_segment(
         f'timeindex {data_timeindex} '
         f'channels {data_channels} '
     ))
-    image_block, _ = read_utils.open(image_container_path, image_subpath,
-                                     data_timeindex=data_timeindex,
-                                     data_channels=data_channels,
-                                     block_coords=crop)
+    image_block, block_attrs = read_utils.open(image_container_path, image_subpath,
+                                               data_timeindex=data_timeindex,
+                                               data_channels=data_channels,
+                                               block_coords=crop)
+    if anisotropy is None or anisotropy == 1:
+        # try to compute it from block's attributes
+        anisotropy = compute_block_anisotropy(block_attrs)
 
     start_time = time.time()
 
