@@ -656,9 +656,8 @@ def global_segment_ids(segmentation, block_index, nblocks):
     """
     unique, unique_inverse = np.unique(segmentation, return_inverse=True)
     logger.debug((
-        f'Block {block_index} '
-        f'- start at: {nblocks} '
-        f'- found {len(unique)} unique labels'
+        f'Block {block_index} out of {nblocks} '
+        f'- has {len(unique)} unique labels '
     ))
     p = str(np.ravel_multi_index(block_index, nblocks))
     remap = [int(p+str(x).zfill(5)) for x in unique]
