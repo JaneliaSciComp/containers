@@ -229,7 +229,11 @@ def _open_ome_zarr(data_container, data_subpath,
     # lookup the dataset by path
     for ds in multiscale_metadata.datasets:
         current_ds_path_comps = [c for c in ds.path.split('/') if c]
-        if (len(current_ds_path_comps) < len(dataset_comps) and
+        logger.debug((
+            f'Compare current dataset path: {ds.path} ({current_ds_path_comps}) '
+            f'with {dataset_subpath} ({dataset_comps}) '
+        ))
+        if (len(current_ds_path_comps) <= len(dataset_comps) and
             tuple(current_ds_path_comps) == tuple(dataset_comps[-len(current_ds_path_comps):])):
             # found a dataset that has a path matching a suffix of the dataset_subpath arg
             dataset_metadata = ds
