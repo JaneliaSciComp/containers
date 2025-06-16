@@ -267,6 +267,7 @@ def _open_ome_zarr(data_container, data_subpath,
         ba = _get_array_selector(dataset_axes, data_timeindex, data_channels)(a)[block_coords]
     else:
         ba = _get_array_selector(dataset_axes, data_timeindex, data_channels)(a)
+    multiscales_attrs.update(a.attrs.asdict())
     multiscales_attrs.update({
         'dataset_path': dataset_path,
         'axes': dataset_axes,

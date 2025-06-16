@@ -586,7 +586,8 @@ def read_preprocess_and_segment(
                                           device=segmentation_device)
     normalize_params = {
         "normalize": normalize,
-        "lowhigh": normalize_lowhigh,
+        "lowhigh": ((int(normalize_lowhigh[0]), int(normalize_lowhigh[1]))
+                       if normalize_lowhigh is not None else None),
         "percentile": ((int(normalize_percentile[0]), int(normalize_percentile[1]))
                        if normalize_percentile is not None else None),
         "norm3D": normalize_norm3D,

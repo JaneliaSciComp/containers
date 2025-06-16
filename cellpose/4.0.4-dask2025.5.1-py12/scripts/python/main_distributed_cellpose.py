@@ -117,6 +117,11 @@ def _define_args():
                              dest='eval_channels',
                              type=_inttuple,
                              help='Cellpose channels: 0,0 - gray images')
+    args_parser.add_argument('--norm-lowhigh', '--norm_lowhigh',
+                             nargs=2,  # Require exactly two values
+                             metavar=('VALUE1', 'VALUE2'),
+                             help="Provide two values to set low and high normalize value"
+    )
     args_parser.add_argument('--expansion-factor', '--expansion_factor',
                              dest='expansion_factor',
                              type=float,
@@ -327,6 +332,7 @@ def _run_segmentation(args):
                 z_axis=z_axis,
                 channel_axis=channel_axis,
                 normalize=not args.no_norm,
+                normalize_lowhigh=args.norm_lowhigh,
                 normalize_percentile=args.norm_percentile,
                 flow_threshold=args.flow_threshold,
                 cellprob_threshold=args.cellprob_threshold,
