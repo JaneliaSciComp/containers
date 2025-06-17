@@ -348,11 +348,14 @@ def _run_segmentation(args):
                 gpu_device=args.gpu_device,
             )
 
-            labels_attributes = prepare_attrs(output_subpath,
-                                              axes=image_attrs.get('axes'),
-                                              coordinateTransformations=image_attrs.get('coordinateTransformations'),
-                                              pixelResolution=image_attrs.get('pixelResolution'),
-                                              downsamplingFactors=image_attrs.get('downsamplingFactors'))
+            labels_attributes = prepare_attrs(
+                os.path.basename(output_labels),
+                output_subpath,
+                axes=image_attrs.get('axes'),
+                coordinateTransformations=image_attrs.get('coordinateTransformations'),
+                pixelResolution=image_attrs.get('pixelResolution'),
+                downsamplingFactors=image_attrs.get('downsamplingFactors'),
+            )
 
             if args.output_blocksize is not None:
                 if len(args.output_blocksize) < output_labels.ndim:

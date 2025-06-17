@@ -3,8 +3,7 @@ import os
 import re
 import zarr
 
-from ome_zarr_models.v04.image import (ImageAttrs, Multiscale,
-                                       Dataset)
+from ome_zarr_models.v04.image import (Dataset, ImageAttrs, Multiscale)
 
 
 logger = logging.getLogger(__name__)
@@ -102,7 +101,8 @@ def open(data_path, data_subpath, data_store_name=None,
         raise e
 
 
-def prepare_attrs(dataset_path, # src_image_attributes:dict,
+def prepare_attrs(name,
+                  dataset_path,
                   axes:list | None = None,
                   coordinateTransformations:list | None = None,
                   **additional_attrs) -> dict:
@@ -126,12 +126,14 @@ def prepare_attrs(dataset_path, # src_image_attributes:dict,
         ome_metadata = ImageAttrs(
             multiscales=[
                 Multiscale(
+                    name=name,
                     axes=axes,
                     datasets=(dataset,),
+                    version='0.4'
                 )
             ],
         )
-        ome_attrs = ome_metadata.dict()
+        ome_attrs = ome_metadata.dict(exclude_none=True)
         ome_attrs.update(additional_attrs)
         return ome_attrs
 
