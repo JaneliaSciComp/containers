@@ -634,7 +634,6 @@ def read_preprocess_and_segment(
                         min_size=min_size,
                         resample=resample,
                         anisotropy=anisotropy,
-                        normalize=normalize_params,
                         flow_threshold=flow_threshold,
                         cellprob_threshold=cellprob_threshold,
                         stitch_threshold=stitch_threshold,
