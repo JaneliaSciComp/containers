@@ -610,12 +610,28 @@ def read_preprocess_and_segment(
         logger.info(f'Normalize params: {normalize_params}')
         image_block = transforms.normalize_img(image_block, axis=channel_axis,
                                                **normalize_params)
+    logger.info((
+        'Eval args: '
+        f'diameter={diameter}, '
+        f'min_size={min_size}, '
+        f'anisotropy={anisotropy}, '
+        f'do_3D={do_3D}, '
+        f'z_axis={z_axis}, '
+        f'normalize=False, '
+        f'channel_axis={channel_axis}, '
+        f'flow_threshold={flow_threshold}, '
+        f'cellprob_threshold={cellprob_threshold}, '
+        f'stitch_threshold={stitch_threshold}, '
+        f'flow3D_smooth={flow3D_smooth}, '
+        f'batch_size={gpu_batch_size}, '
+    ))
     labels = model.eval(image_block,
                         diameter=diameter,
                         min_size=min_size,
                         anisotropy=anisotropy,
                         do_3D=do_3D,
                         z_axis=z_axis,
+                        normalize=False,
                         channel_axis=channel_axis,
                         flow_threshold=flow_threshold,
                         cellprob_threshold=cellprob_threshold,

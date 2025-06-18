@@ -344,18 +344,7 @@ def _eval_model(block_index,
     logger.info((
         f'Run model eval for block: {block_index}, '
         f'size: {block_data.shape}, '
-        f'model_type: {model_type}, '
-        f'diameter: {diameter}, '
-        f'min_size: {min_size}, '
-        f'do_3D: {do_3D}, '
-        f'z_axis: {z_axis}, '
-        f'channel_axis: {channel_axis}, '
-        f'anisotropy: {anisotropy}, '
-        f'flow_threshold: {flow_threshold}, '
-        f'cellprob_threshold: {cellprob_threshold}, '
-        f'stitch_threshold: {stitch_threshold}, '
-        f'flow3D_smooth: {flow3D_smooth}, '
-        f'gpu_batch_size: {gpu_batch_size}, '
+        f'model_type: {model_type} '
     ))
 
     np.random.seed(block_index)
@@ -426,14 +415,29 @@ def _eval_model(block_index,
         # try to compute it from block's attributes
         anisotropy = compute_block_anisotropy(block_attrs)
 
+    logger.info((
+        'Eval args: '
+        f'diameter={diameter}, '
+        f'min_size={min_size}, '
+        f'anisotropy={anisotropy}, '
+        f'do_3D={do_3D}, '
+        f'z_axis={z_axis}, '
+        f'normalize=False, '
+        f'channel_axis={channel_axis}, '
+        f'flow_threshold={flow_threshold}, '
+        f'cellprob_threshold={cellprob_threshold}, '
+        f'stitch_threshold={stitch_threshold}, '
+        f'flow3D_smooth={flow3D_smooth}, '
+        f'batch_size={gpu_batch_size}, '
+    ))
     labels = model.eval(block_data,
                         diameter=diameter,
                         min_size=min_size,
                         anisotropy=anisotropy,
                         do_3D=do_3D,
                         z_axis=z_axis,
+                        normalize=False,
                         channel_axis=channel_axis,
-                        normalize=normalize_params,
                         flow_threshold=flow_threshold,
                         cellprob_threshold=cellprob_threshold,
                         stitch_threshold=stitch_threshold,
