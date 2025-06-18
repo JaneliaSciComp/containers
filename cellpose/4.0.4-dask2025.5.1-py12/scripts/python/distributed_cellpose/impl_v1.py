@@ -617,7 +617,6 @@ def read_preprocess_and_segment(
                         do_3D=do_3D,
                         z_axis=z_axis,
                         channel_axis=channel_axis,
-                        normalize=normalize_params,
                         flow_threshold=flow_threshold,
                         cellprob_threshold=cellprob_threshold,
                         stitch_threshold=stitch_threshold,
