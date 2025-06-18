@@ -349,7 +349,7 @@ def _run_segmentation(args):
             )
 
             labels_attributes = prepare_attrs(
-                os.path.basename(output_labels),
+                os.path.basename(args.output),
                 output_subpath,
                 axes=image_attrs.get('axes'),
                 coordinateTransformations=image_attrs.get('coordinateTransformations'),

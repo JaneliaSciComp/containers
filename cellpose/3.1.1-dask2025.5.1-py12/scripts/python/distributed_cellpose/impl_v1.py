@@ -13,6 +13,8 @@ import torch
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
 
+from cellpose import transforms
+
 from .block_utils import (get_block_crops, get_nblocks, 
                           compute_block_anisotropy, remove_overlaps)
 
@@ -38,6 +40,15 @@ def distributed_eval(
         gpu_device=None,
         eval_channels=None,
         do_3D=True,
+        normalize=True,
+        normalize_lowhigh=None,
+        normalize_percentile=None,
+        normalize_norm3D=True,
+        normalize_sharpen_radius=0,
+        normalize_smooth_radius=0,
+        normalize_tile_norm_blocksize=0,
+        normalize_tile_norm_smooth3D=1,
+        normalize_invert=False,
         z_axis=0,
         channel_axis=None,
         anisotropy=None,
@@ -197,6 +208,15 @@ def distributed_eval(
         diameter=diameter,
         eval_channels=eval_channels,
         do_3D=do_3D,
+        normalize=normalize,
+        normalize_lowhigh=normalize_lowhigh,
+        normalize_percentile=normalize_percentile,
+        normalize_norm3D=normalize_norm3D,
+        normalize_sharpen_radius=normalize_sharpen_radius,
+        normalize_smooth_radius=normalize_smooth_radius,
+        normalize_tile_norm_blocksize=normalize_tile_norm_blocksize,
+        normalize_tile_norm_smooth3D=normalize_tile_norm_smooth3D,
+        normalize_invert=normalize_invert,
         z_axis=z_axis,
         channel_axis=channel_axis,
         anisotropy=anisotropy,
@@ -276,6 +296,15 @@ def process_block(
     diameter=30,
     eval_channels=None,
     do_3D=True,
+    normalize=True,
+    normalize_lowhigh=None,
+    normalize_percentile=None,
+    normalize_norm3D=True,
+    normalize_sharpen_radius=0,
+    normalize_smooth_radius=0,
+    normalize_tile_norm_blocksize=0,
+    normalize_tile_norm_smooth3D=1,
+    normalize_invert=False,
     z_axis=0,
     channel_axis=None,
     anisotropy=None,
@@ -419,6 +448,15 @@ def process_block(
         z_axis=z_axis,
         channel_axis=channel_axis,
         do_3D=do_3D,
+        normalize=normalize,
+        normalize_lowhigh=normalize_lowhigh,
+        normalize_percentile=normalize_percentile,
+        normalize_norm3D=normalize_norm3D,
+        normalize_sharpen_radius=normalize_sharpen_radius,
+        normalize_smooth_radius=normalize_smooth_radius,
+        normalize_tile_norm_blocksize=normalize_tile_norm_blocksize,
+        normalize_tile_norm_smooth3D=normalize_tile_norm_smooth3D,
+        normalize_invert=normalize_invert,
         min_size=min_size,
         resample=resample,
         anisotropy=anisotropy,
@@ -485,6 +523,15 @@ def read_preprocess_and_segment(
     z_axis=0,
     channel_axis=None,
     do_3D=True,
+    normalize=True,
+    normalize_lowhigh=None,
+    normalize_percentile=None,
+    normalize_norm3D=True,
+    normalize_sharpen_radius=0,
+    normalize_smooth_radius=0,
+    normalize_tile_norm_blocksize=0,
+    normalize_tile_norm_smooth3D=1,
+    normalize_invert=False,
     min_size=15,
     resample=True,
     anisotropy=None,
@@ -551,7 +598,19 @@ def read_preprocess_and_segment(
     model = cellpose.models.CellposeModel(gpu=gpu,
                                           model_type=model_type,
                                           device=segmentation_device)
-
+    normalize_params = {
+        "normalize": normalize,
+        "lowhigh": ((int(normalize_lowhigh[0]), int(normalize_lowhigh[1]))
+                       if normalize_lowhigh is not None else None),
+        "percentile": ((int(normalize_percentile[0]), int(normalize_percentile[1]))
+                       if normalize_percentile is not None else None),
+        "norm3D": normalize_norm3D,
+        "sharpen_radius": normalize_sharpen_radius,
+        "smooth_radius": normalize_smooth_radius,
+        "tile_norm_blocksize": normalize_tile_norm_blocksize,
+        "tile_norm_smooth3D": normalize_tile_norm_smooth3D,
+        "invert": normalize_invert,
+    }
     if (do_3D and len(image_block.shape) == 3 or
         not do_3D and len(image_block.shape) == 2):
         # if 3D and the block has exactly 3 dimensions
@@ -560,6 +619,11 @@ def read_preprocess_and_segment(
         new_block_shape = (1,) + image_block.shape
         logger.debug(f'Reshape block of {image_block.shape} to {new_block_shape}')
         image_block = image_block.reshape(new_block_shape)
+
+    if normalize:
+        logger.info(f'Normalize params: {normalize_params}')
+        image_block = transforms.normalize_img(image_block, axis=channel_axis,
+                                               **normalize_params)
 
     labels = model.eval(image_block,
                         channels=eval_channels,
@@ -570,6 +634,7 @@ def read_preprocess_and_segment(
                         min_size=min_size,
                         resample=resample,
                         anisotropy=anisotropy,
+                        normalize=normalize_params,
                         flow_threshold=flow_threshold,
                         cellprob_threshold=cellprob_threshold,
                         stitch_threshold=stitch_threshold,
