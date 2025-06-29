@@ -13,7 +13,7 @@ from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_d
 from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_iou_merge)
 from distributed_cellpose.preprocessing import get_preprocessing_steps
 
-from io_utils.zarr_utils import prepare_attrs
+from io_utils.zarr_utils import prepare_parent_group_attrs
 
 from utils.configure_logging import (configure_logging)
 from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
@@ -242,15 +242,13 @@ def _run_segmentation(args):
                                           worker_cpus=args.worker_cpus)
     dask_client.register_plugin(worker_config, name='WorkerConfig')
 
-    image_data, image_attrs = read_utils.open(args.input, args.input_subpath,
-                                              data_timeindex=args.input_timeindex,
-                                              data_channels=args.input_channels)
+    image_data, image_attrs = read_utils.open(args.input, args.input_subpath)
     image_ndim = image_data.ndim
     image_shape = image_data.shape
     image_dtype = image_data.dtype
     image_data = None
 
-    if args.voxel_spacing:
+    if args.voxel_spacing is not None:
         voxel_spacing = read_utils.get_voxel_spacing({}, args.voxel_spacing)
     else:
         voxel_spacing = read_utils.get_voxel_spacing(image_attrs, (1.,) * image_ndim)
@@ -348,20 +346,19 @@ def _run_segmentation(args):
                 gpu_device=args.gpu_device,
             )
 
-            labels_attributes = prepare_attrs(
+            labels_group_attrs = prepare_parent_group_attrs(
                 os.path.basename(args.output),
                 output_subpath,
                 axes=image_attrs.get('axes'),
                 coordinateTransformations=image_attrs.get('coordinateTransformations'),
-                pixelResolution=image_attrs.get('pixelResolution'),
-                downsamplingFactors=image_attrs.get('downsamplingFactors'),
             )
 
             if args.output_blocksize is not None:
                 if len(args.output_blocksize) < output_labels.ndim:
-                    # append 0s
+                    # append 0s which later will be replaced
+                    # with corresponding output_labels dimension
                     output_blocksize_arg = (args.output_blocksize +
-                                            (0,) * (output_labels.ndim - len(args.output_blocksize)))
+                                            output_labels[0:(output_labels.ndim-len(args.output_blocksize))][::-1])
                 else:
                     output_blocksize_arg = args.output_blocksize
                 zyx_blocksize = output_blocksize_arg[::-1] # make it zyx
@@ -371,10 +368,21 @@ def _run_segmentation(args):
                 # default to output_chunk_size
                 output_blocks = (args.output_chunk_size,) * output_labels.ndim
 
+            if len(output_labels.shape) < len(image_shape):
+                output_shape = (1,) * (len(image_shape) - len(output_labels.shape)) + output_labels.shape
+            else:
+                output_shape = output_labels.shape
+
+            if len(output_blocks) < len(image_shape):
+                output_blocks = (1,) * (len(image_shape) - len(output_blocks)) + output_blocks
+
             persisted_labels = write_utils.save(
-                output_labels, args.output, output_subpath,
+                args.output, output_subpath,
+                output_labels, output_shape,
                 blocksize=output_blocks,
-                container_attributes=labels_attributes,
+                container_attributes=labels_group_attrs,
+                pixelResolution=image_attrs.get('pixelResolution'),
+                downsamplingFactors=image_attrs.get('downsamplingFactors'),
             )
 
             if persisted_labels is not None:
