@@ -233,7 +233,8 @@ def _run_segmentation(args):
         dask_client = Client(address=args.dask_scheduler)
     else:
         # use a local asynchronous client
-        dask_client = Client(LocalCluster(n_workers=args.local_dask_workers))
+        dask_client = Client(LocalCluster(n_workers=args.local_dask_workers,
+                                          threads_per_worker=args.worker_cpus))
 
     logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
     worker_config = ConfigureWorkerPlugin(models_dir,

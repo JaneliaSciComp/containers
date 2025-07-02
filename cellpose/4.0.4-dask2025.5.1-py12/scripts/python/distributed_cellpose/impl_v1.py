@@ -609,11 +609,11 @@ def read_preprocess_and_segment(
         image_block = image_block.reshape(new_block_shape)
 
     if normalize:
-        logger.info(f'Normalize params: {normalize_params}')
+        logger.info(f'Normalize {image_block.shape} block at {crop} params: {normalize_params}')
         image_block = transforms.normalize_img(image_block, axis=channel_axis,
                                                **normalize_params)
     logger.info((
-        'Eval args: '
+        f'Eval {image_block.shape} block at {crop} args: '
         f'diameter={diameter}, '
         f'min_size={min_size}, '
         f'anisotropy={anisotropy}, '
