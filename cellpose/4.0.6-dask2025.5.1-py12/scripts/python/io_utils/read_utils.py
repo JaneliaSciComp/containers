@@ -13,8 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 def get_voxel_spacing(attrs, default_value=[1., 1., 1.]):
-    # OME ZARR has the coords in TCZYX order
-    # N5 has them in XYZ order
+    """
+    Get voxel spacing always in the [TC]ZYX order.
+
+    The method takes into consideration that
+    * OME ZARR has the coords in TCZYX order
+    * N5 has them in XYZ order
+    """
     if attrs.get('coordinateTransformations'):
         # this typically is the OME-ZARR case
         scale_metadata = list(filter(lambda t: t.get('type') == 'scale', attrs['coordinateTransformations']))
