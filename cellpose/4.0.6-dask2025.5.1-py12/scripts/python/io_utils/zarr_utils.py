@@ -202,10 +202,10 @@ def _is_ome_zarr(data_container_attrs: dict | None) -> bool:
     if data_container_attrs is None:
         return False
 
-    # test if multiscales attribute exists - if it does assume OME-ZARR
+    # test if bioformats_layout or multiscales attribute exists - if it does assume OME-ZARR
     bioformats_layout = data_container_attrs.get("bioformats2raw.layout", None)
     multiscales = data_container_attrs.get('multiscales', [])
-    return bioformats_layout == 3 or not (multiscales == [])
+    return bioformats_layout == 3 or len(multiscales) > 0
 
 
 def _find_ome_multiscales(data_container, data_subpath):
@@ -356,16 +356,3 @@ def _get_array_selection(arr, axes, timeindex: int | None,
             raise e
     else:
         return arr
-
-
-def _get_dataset_subpath(requested_subpath:str, multiscale: Multiscale, dataset_index=0) -> (str, str):
-    dataset = multiscale.datasets[dataset_index]
-    requested_subpath_comps = [c for c in requested_subpath.split('/') if c]
-
-    if len(requested_subpath_comps) > 0:
-        # drop the scale component
-        requested_subpath_comps.pop()
-    
-    dataset_subpath = dataset.path
-
-    return '/'.join(requested_subpath_comps), dataset_subpath
