@@ -4,7 +4,6 @@ ARG STITCHING_SPARK_GIT_TAG=1.11.0-rc2
 # Temporary container for building cleanly
 FROM azul/zulu-openjdk-debian:8u412-jdk AS builder
 ARG STITCHING_SPARK_GIT_TAG
-ARG TARGETPLATFORM
 
 RUN apt update \
  && apt install -y git curl \

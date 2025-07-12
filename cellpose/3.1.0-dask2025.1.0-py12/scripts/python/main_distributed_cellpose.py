@@ -9,7 +9,6 @@ from cellpose import version_str as cellpose_version
 from cellpose.models import get_user_models
 from cellpose.cli import get_arg_parser
 from dask.distributed import (Client, LocalCluster)
-from flatten_json import flatten
 
 from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_dt_merge)
 from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_iou_merge)
@@ -24,6 +23,7 @@ def _floattuple(arg):
         return tuple([float(d) for d in arg.split(',')])
     else:
         return ()
+
 
 def _inttuple(arg):
     if arg is not None and arg.strip():
@@ -106,11 +106,11 @@ def _define_args():
                              default=0.,
                              help='Sample expansion factor')
 
-    args_parser.add_argument('--eval-model-with-size', '--eval_model_with_size',
-                             dest='eval_model_with_size',
+    args_parser.add_argument('--use-model-only-to-eval', '--use_model_only_to_eval',
+                             dest='eval_only_with_model',
                              action='store_true',
                              default=False,
-                             help='Eval model using both CellposeModel and SizeModel')
+                             help='If true it uses only CellposeModel to eval otherwise it uses both CellposeModel and SizeModel')
 
     args_parser.add_argument('--test-mode', '--test_mode',
                              dest='test_mode',
@@ -320,7 +320,7 @@ def _run_segmentation(args):
                 label_dist_th=args.label_dist_th,
                 persist_labeled_blocks=args.save_intermediate_labels,
                 preprocessing_steps=preprocessing_steps,
-                eval_model_with_size=args.eval_model_with_size,
+                eval_model_with_size=(not args.eval_only_with_model),
                 test_mode=args.test_mode,
             )
 
