@@ -19,6 +19,14 @@ def _define_args():
                              type=str,
                              required=False,
                              help = "path to the labels container")
+    args_parser.add_argument('--labels-timeindex',
+                             dest='labels_timeindex',
+                             type=int,
+                             help = "labels time index")
+    args_parser.add_argument('--labels-channel',
+                             dest='labels_channel',
+                             type=int,
+                             help = "labels channel")
 
     args_parser.add_argument('--image-container',
                              dest='image_container',
@@ -28,6 +36,14 @@ def _define_args():
                              dest='image_dataset',
                              type=str,
                              help = "image subpath")
+    args_parser.add_argument('--image-timeindex',
+                             dest='image_timeindex',
+                             type=int,
+                             help = "image time index")
+    args_parser.add_argument('--image-channel',
+                             dest='image_channel',
+                             type=int,
+                             help = "image channel")
 
     args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
                              dest='voxel_spacing',
@@ -43,10 +59,18 @@ def _define_args():
                              dest='dapi_dataset',
                              type=str,
                              help = "DAPI image subpath")
-    args_parser.add_argument('--bleed-subpath', '--bleed-dataset',
-                             dest='bleed_dataset',
+    args_parser.add_argument('--dapi-channel',
+                             dest='dapi_channel',
+                             type=int,
+                             help = "DAPI channel")
+    args_parser.add_argument('--bleeding-subpath', '--bleeding-dataset',
+                             dest='bleeding_dataset',
                              type=str,
-                             help = "Bleed image subpath")
+                             help = "Bleeding image subpath")
+    args_parser.add_argument('--bleeding-channel',
+                             dest='bleeding_channel',
+                             type=int,
+                             help = "Bleeding channel")
 
     args_parser.add_argument('-o','--output',
                              dest='output',
@@ -58,14 +82,21 @@ def _define_args():
 
 
 def _extract_spots_region_properties(args):
-    image_data, image_attrs = imgio.open(args.image_container, args.image_dataset)
-    labels_zarr, _ = imgio.open(args.labels_container, args.labels_dataset)
+    image_data, image_attrs = imgio.open(args.image_container, args.image_dataset,
+                                         data_timeindex=args.image_timeindex,
+                                         data_channels=args.image_channel)
+    print(f'Opened {image_data.shape} image {args.image_container}:{args.image_dataset}')
+
+    labels_zarr, _ = imgio.open(args.labels_container, args.labels_dataset,
+                                data_timeindex=args.labels_timeindex,
+                                data_channels=args.labels_channel)
+    print(f'Opened {labels_zarr.shape} labels {args.labels_container}:{args.labels_dataset}')
 
     if args.voxel_spacing:
-        voxel_spacing = imgio.get_voxel_spacing({}, args.voxel_spacing, as_zyx=True)
+        voxel_spacing = imgio.get_voxel_spacing({}, args.voxel_spacing)
     else:
         # get voxel spacing from the labels attributes
-        voxel_spacing = imgio.get_voxel_spacing(image_attrs, args.voxel_spacing, as_zyx=True)
+        voxel_spacing = imgio.get_voxel_spacing(image_attrs, args.voxel_spacing)
 
     if voxel_spacing is None:
         if args.expansion_factor > 0:
@@ -79,10 +110,16 @@ def _extract_spots_region_properties(args):
 
     image = image_data[...]
 
-    if (args.bleed_dataset is not None and
-        args.dapi_dataset is not None and
-        args.bleed_dataset == args.image_dataset):
-        dapi_data, _ = imgio.open(args.image_container, args.dapi_dataset)
+    if ((args.bleeding_dataset is not None and
+         args.dapi_dataset is not None and
+         args.bleeding_dataset == args.image_dataset) or
+        (args.bleeding_channel is not None and
+         args.dapi_channel is not None and
+         args.bleeding_channel == args.image_channel)):
+        dapi_data, _ = imgio.open(args.image_container, args.dapi_dataset,
+                                  data_timeindex=args.image_timeindex,
+                                  data_channels=args.dapi_channel)
+        print(f'Opened {dapi_data.shape} DAPI image {args.image_container}:{args.dapi_dataset}')
         dapi = dapi_data[...]
         lo = np.percentile(np.ndarray.flatten(dapi), 99.5)
         bg_dapi = np.percentile(np.ndarray.flatten(dapi[dapi != 0]), 1)
@@ -90,7 +127,7 @@ def _extract_spots_region_properties(args):
         dapi_factor = np.median((image[dapi > lo] - bg_img) /
                                 (dapi[dapi > lo] - bg_dapi))
         image = np.maximum(0, image - bg_img - dapi_factor * (dapi - bg_dapi)).astype('float32')
-        print(f'Corrected bleed dataset {args.bleed_dataset} {image.shape} image')
+        print(f'Corrected bleed dataset {args.image_dataset} {image.shape} image')
         print('bleed_through:', dapi_factor)
         print('DAPI background:', bg_dapi)
         print('bleed_through channel background:', bg_img)

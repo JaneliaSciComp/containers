@@ -1,18 +1,20 @@
 ARG SPARK_VERSION=3.3.2-scala2.12-java17-ubuntu24.04
 ARG BIGSTITCHER_SPARK_GIT_HASH=1c8cb26
+ARG BIGSTITCHER_BRANCH=upgrade-n5-zarr
 
 # Staged build using builder container with java8
 # because Bigstitcher still needs java8 to build
 FROM azul/zulu-openjdk:8-latest AS builder
 ARG BIGSTITCHER_SPARK_GIT_HASH
+ARG BIGSTITCHER_BRANCH
 
-RUN apt update -y; \
+RUN apt-get update -y; \
     apt-get install -y git curl maven; \
     curl -sSL https://bit.ly/install-xq | bash;
 
 # Checkout and build the code
 WORKDIR /tmp/app
-RUN git clone https://github.com/JaneliaSciComp/BigStitcher-Spark.git . \
+RUN git clone --branch ${BIGSTITCHER_BRANCH} https://github.com/JaneliaSciComp/BigStitcher-Spark.git . \
     && git reset --hard ${BIGSTITCHER_SPARK_GIT_HASH} \
     && mvn package -P fatjar -DskipTests
 
@@ -21,7 +23,7 @@ RUN xq -x '/project/artifactId' pom.xml > target-name \
  && xq -x '/project/version' pom.xml > target-version \
  && mv target/$(cat target-name)-$(cat target-version).jar app.jar
 
-RUN echo "${BIGSTITCHER_SPARK_GIT_HASH}" > /tmp/app/VERSION
+RUN echo "${BIGSTITCHER_BRANCH}:${BIGSTITCHER_SPARK_GIT_HASH}" > /tmp/app/VERSION
 
 # Create final image
 FROM ghcr.io/janeliascicomp/spark:${SPARK_VERSION}
@@ -36,7 +38,7 @@ LABEL \
 
 USER root
 
-RUN apt update -y; \
+RUN apt-get update -y; \
     apt-get install -y \
         libblosc1 libblosc-dev \
         libzstd1 libzstd-dev libhdf5-dev;

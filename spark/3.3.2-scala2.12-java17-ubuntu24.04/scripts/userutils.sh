@@ -28,3 +28,5 @@ switch_user_if_root() {
     echo gosu spark
   fi
 }
+
+umask 0002

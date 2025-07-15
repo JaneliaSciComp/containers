@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import os
 
 import io_utils.imgio as imgio
 
@@ -68,11 +69,25 @@ def _post_process_rsfish_csv_results(args):
     rsfish_spots = np.loadtxt(args.input, delimiter=',', skiprows=1)
     rsfish_spots[:, :3] = rsfish_spots[:, :3] * voxel_spacing
 
+    # extract unique channels
+    rsfish_channels = np.unique(rsfish_spots[:, 4]).astype(int)
+    if len(rsfish_channels) == 1:
+        # the RS-FISH result only has one channel
+        _save_results_per_channel(rsfish_spots, args.output)
+    else:
+        name, ext = os.path.splitext(args.output)
+        print(f'{args.output} -> {name}, {ext}')
+        for c in rsfish_channels:
+            channel_result_file = f'{name}-{c-1}{ext}'
+            _save_results_per_channel(rsfish_spots[rsfish_spots[:,4] == c],channel_result_file)
+
+
+def _save_results_per_channel(rsfish_spots, res_file):
     # Remove unnecessary columns (t,c) at indexes 3 and 4 
     rsfish_spots = np.delete(rsfish_spots, np.s_[3:5], axis=1)
 
-    print(f'Saving {rsfish_spots.shape[0]} points in micron space to {args.output}')
-    np.savetxt(args.output, rsfish_spots, delimiter=',')
+    print(f'Saving {rsfish_spots.shape[0]} points in micron space to {res_file}')
+    np.savetxt(res_file, rsfish_spots, delimiter=',')
 
 
 def _main():

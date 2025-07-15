@@ -19,7 +19,7 @@ RUN groupadd --system --gid=${spark_uid} spark \
  && useradd --system --uid=${spark_uid} --gid=spark spark
 
 RUN set -ex; \
-    apt update -y; \
+    apt-get update -y; \
     apt-get install -y \
         gnupg2 \
         wget curl tar tini libc6 libpam-modules \

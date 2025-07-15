@@ -47,6 +47,16 @@ def _define_args():
                              required=True,
                              help = "Glob pattern for spots files")
 
+    args_parser.add_argument('--timeindex',
+                             dest='spots_timeindex',
+                             type=int,
+                             help = "spots time index")
+
+    args_parser.add_argument('--channel',
+                             dest='spots_channel',
+                             type=int,
+                             help = "spots channel")
+
     args_parser.add_argument('-o','--output',
                              dest='output',
                              type=str,
@@ -57,6 +67,10 @@ def _define_args():
 
 
 def _get_spots_counts(args):
+    """
+    Aggregates all files containing spot counts files that match the pattern
+    into an output csv file
+    """
 
     labels_zarr, labels_attrs = imgio.open(args.labels_container, args.labels_dataset)
     image_ndim = len(labels_zarr.shape)
@@ -86,7 +100,7 @@ def _get_spots_counts(args):
     fx = sorted(glob(args.spots_pattern))
     labels = labels_zarr[...]
     label_ids = np.unique(labels[labels != 0])
-    z, y, x = labels.shape
+    z, y, x = labels.shape[-3:]
     print(f"Found {len(label_ids)} labels - labels shape: {labels.shape}")
 
     count = pd.DataFrame(np.empty([len(label_ids), 0]), index=label_ids)
@@ -112,7 +126,7 @@ def _get_spots_counts(args):
                     try:
                         # if all non-rounded coord are valid values (none is NaN)
                         coord = np.minimum(spots_coords[i], [x, y, z])
-                        spot_label = _get_spot_label(labels, coord)
+                        spot_label = _get_spot_label(labels, args.spots_timeindex, args.spots_channel, coord)
                         if spot_label > 0 and spot_label <= len(label_ids):
                             # increment counter
                             df.loc[spot_label, 'count'] = df.loc[spot_label, 'count'] + 1
@@ -128,14 +142,18 @@ def _get_spots_counts(args):
     filtered_count.to_csv(args.output, index_label='Label')
 
 
-def _get_spot_label(labels, xyz_coord):
+def _get_spot_label(labels, timeindex, channel, xyz_coord):
     zyx_coord = xyz_coord[::-1]
     max_coord = np.round(zyx_coord).astype(int)
     min_coord = np.maximum(np.floor(zyx_coord-1).astype(int), [0, 0, 0])
     try:
-        crange = tuple([slice(start, stop) if start != stop else start 
-                        for start, stop in zip(min_coord, max_coord)])
-
+        label_ndims = labels.ndim
+        time_coord = (timeindex,) if timeindex is not None and label_ndims > 3 else ()
+        channel_coord = (channel,) if channel is not None and label_ndims > 3 else ()
+        crange = time_coord + channel_coord + tuple([slice(start, stop) 
+                                                     if start != stop else start 
+                                                     for start, stop in 
+                                                     zip(min_coord, max_coord)])
         return np.max(labels[crange])
     except Exception as e:
         print(f'Error retrieving label at {xyz_coord} using {crange}', e)
