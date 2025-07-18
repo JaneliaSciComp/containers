@@ -13,7 +13,7 @@ from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_d
 from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_iou_merge)
 from distributed_cellpose.preprocessing import get_preprocessing_steps
 
-from io_utils.zarr_utils import prepare_attrs
+from io_utils.zarr_utils import prepare_parent_group_attrs
 
 from utils.configure_logging import (configure_logging)
 from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
@@ -346,11 +346,12 @@ def _run_segmentation(args):
                 test_mode=args.test_mode,
             )
 
-            labels_attributes = prepare_attrs(output_subpath,
-                                              axes=image_attrs.get('axes'),
-                                              coordinateTransformations=image_attrs.get('coordinateTransformations'),
-                                              pixelResolution=image_attrs.get('pixelResolution'),
-                                              downsamplingFactors=image_attrs.get('downsamplingFactors'))
+            labels_group_attrs = prepare_parent_group_attrs(
+                os.path.basename(args.output),
+                output_subpath,
+                axes=image_attrs.get('axes'),
+                coordinateTransformations=image_attrs.get('coordinateTransformations'),
+            )
 
             if args.output_blocksize is not None:
                 if len(args.output_blocksize) < output_labels.ndim:
@@ -366,10 +367,21 @@ def _run_segmentation(args):
                 # default to output_chunk_size
                 output_blocks = (args.output_chunk_size,) * output_labels.ndim
 
+            if len(output_labels.shape) < len(image_shape):
+                output_shape = (1,) * (len(image_shape) - len(output_labels.shape)) + output_labels.shape
+            else:
+                output_shape = output_labels.shape
+
+            if len(output_blocks) < len(image_shape):
+                output_blocks = (1,) * (len(image_shape) - len(output_blocks)) + output_blocks
+
             persisted_labels = write_utils.save(
-                output_labels, args.output, output_subpath,
+                args.output, output_subpath,
+                output_labels, output_shape,
                 blocksize=output_blocks,
-                container_attributes=labels_attributes,
+                container_attributes=labels_group_attrs,
+                pixelResolution=image_attrs.get('pixelResolution'),
+                downsamplingFactors=image_attrs.get('downsamplingFactors'),
             )
 
             if persisted_labels is not None:

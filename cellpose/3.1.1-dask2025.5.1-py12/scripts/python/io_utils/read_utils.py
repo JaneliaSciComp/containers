@@ -12,31 +12,44 @@ from . import zarr_utils
 logger = logging.getLogger(__name__)
 
 
-def get_voxel_spacing(attrs, default_value=None, as_zyx=True):
+def get_voxel_spacing(attrs, default_value=[1., 1., 1.]):
+    """
+    Get voxel spacing always in the [TC]ZYX order.
+
+    The method takes into consideration that
+    * OME ZARR has the coords in TCZYX order
+    * N5 has them in XYZ order
+    """
     if attrs.get('coordinateTransformations'):
-        scale_metadata = list(filter(lambda t: t.type == 'scale', attrs['coordinateTransformations']))
+        # this typically is the OME-ZARR case
+        scale_metadata = list(filter(lambda t: t.get('type') == 'scale', attrs['coordinateTransformations']))
         if len(scale_metadata) > 0:
-            # return voxel spacing as [dx, dy, dz]
-            voxel_spacing = np.array(scale_metadata[0].scale[2:][::-1])
+            dataset_scale = scale_metadata[0].get('scale', [1., 1., 1., 1., 1.])
+            # get voxel spatial resolution as [dx, dy, dz]
+            xyz_voxel_spacing = np.array(dataset_scale[-3:])[::-1]
         else:
-            voxel_spacing = np.array(default_value) if default_value is not None else None
-    elif (attrs.get('downsamplingFactors')):
-        voxel_spacing = (np.array(attrs['pixelResolution']) * 
-                         np.array(attrs['downsamplingFactors']))
+            xyz_voxel_spacing = np.array(default_value) if default_value is not None else None
+    elif (attrs.get('downsamplingFactors') is not None and
+          attrs.get('pixelResolution') is not None):
+        # this is the N5 case for a scale != S0
+        xyz_voxel_spacing = (np.array(attrs['pixelResolution']) *
+                             np.array(attrs['downsamplingFactors']))
     elif (attrs.get('pixelResolution')):
+        # this is the N5 case for S0
         pixel_resolution = attrs['pixelResolution']
         if type(pixel_resolution) is list:
-            voxel_spacing = np.array(pixel_resolution)
-        elif type(pixel_resolution) is dict:
-            voxel_spacing = np.array(pixel_resolution['dimensions'])
+            xyz_voxel_spacing = np.array(pixel_resolution)
         else:
-            raise ValueError(f'Unknown pixelResolution: {pixel_resolution} of type {type(pixel_resolution)}')
+            raise ValueError((
+                f'Unknown pixelResolution: {pixel_resolution} of type {type(pixel_resolution)} '
+                f'found in {attrs} '
+            ))
     else:
-        voxel_spacing = np.array(default_value) if default_value is not None else None
+        xyz_voxel_spacing = np.array(default_value) if default_value is not None else None
 
-    if voxel_spacing is not None:
-        # flip the coordinates if as_zyx is True
-        return voxel_spacing[::-1] if as_zyx else voxel_spacing
+    if xyz_voxel_spacing is not None:
+        # flip the coordinates as zyx
+        return xyz_voxel_spacing[::-1]
     else:
         return None
 
