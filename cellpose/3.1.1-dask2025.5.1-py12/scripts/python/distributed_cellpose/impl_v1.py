@@ -142,6 +142,7 @@ def distributed_eval(
     image_ndim = len(image_shape)
     logger.info((
         f'Segment {image_container_path}:{image_subpath} '
+        f'3D: {do_3D}, '
         f'shape: {image_shape}, '
         f'process blocks: {blocksize} '
         f'timeindex: {timeindex} '
@@ -165,8 +166,8 @@ def distributed_eval(
 
     if (do_3D and len(image_shape) > 3 or 
         not do_3D and len(image_shape) > 2):
-        segmentation_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
-        segmentation_block = [s for i, s in enumerate(blocksize) if i != channel_axis]
+        segmentation_shape = image_shape[-3:] if do_3D else image_shape[-2:]
+        segmentation_block = blocksize[-3:] if do_3D else blocksize[-2:]
     else:
         segmentation_shape = image_shape
         segmentation_block = blocksize
@@ -259,7 +260,8 @@ def distributed_eval(
         not do_3D and len(image_shape) > 2):
         label_block_indices = []
         for bi in block_indices:
-            label_block_indices.append(tuple([b for i,b in enumerate(bi) if i != channel_axis]))
+            label_bi = bi[-3:] if do_3D else bi[-2:]
+            label_block_indices.append(tuple(label_bi))
     else:
         label_block_indices = block_indices
 
@@ -470,12 +472,13 @@ def process_block(
     )
     if (do_3D and len(image_shape) > 3 or
         not do_3D and len(image_shape) > 2):
+        ncoords = 3 if do_3D else 2
         # labels are single channel so if the input was multichannel remove the channel coords
-        labels_image_shape = [s for i, s in enumerate(image_shape) if i != channel_axis]
-        labels_block_index = [b for i, b in enumerate(block_index) if i != channel_axis]
-        labels_coords = [c for i, c in enumerate(crop) if i != channel_axis]
-        labels_overlaps = [o for i, o in enumerate(blocksoverlap) if i != channel_axis]
-        labels_blocksize = [s for i, s in enumerate(blocksize) if i != channel_axis]
+        labels_image_shape = image_shape[-ncoords:]
+        labels_block_index = block_index[-ncoords:]
+        labels_coords = crop[-ncoords:]
+        labels_overlaps = blocksoverlap[-ncoords:]
+        labels_blocksize = blocksize[-ncoords:]
     else:
         labels_image_shape = image_shape
         labels_block_index = block_index

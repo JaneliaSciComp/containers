@@ -237,9 +237,7 @@ def _run_segmentation(args):
                                           worker_cpus=args.worker_cpus)
     dask_client.register_plugin(worker_config, name='WorkerConfig')
 
-    image_data, image_attrs = read_utils.open(args.input, args.input_subpath,
-                                              data_timeindex=args.input_timeindex,
-                                              data_channels=args.input_channels)
+    image_data, image_attrs = read_utils.open(args.input, args.input_subpath)
     image_ndim = image_data.ndim
     image_shape = image_data.shape
     image_dtype = image_data.dtype
@@ -314,18 +312,25 @@ def _run_segmentation(args):
                 channel_axis = args.channel_axis
             else:
                 channel_axis = None
+
+            if args.input_channels is not None and len(args.input_channels) == 1:
+                segmentation_channels = args.input_channels[0]
+            else:
+                segmentation_channels = args.input_channels
+
             # ignore bounding boxes
             output_labels, _ = distributed_eval_method(
                 args.input,
                 args.input_subpath,
                 image_shape,
                 args.input_timeindex,
-                args.input_channels,
+                segmentation_channels,
                 args.segmentation_model,
                 args.diam_mean,
                 process_blocksize,
                 args.working_dir,
                 dask_client,
+                do_3D=True,
                 blocksoverlap=blocks_overlaps,
                 anisotropy=anisotropy,
                 min_size=args.min_size,
