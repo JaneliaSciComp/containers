@@ -324,6 +324,7 @@ def _run_segmentation(args):
                 process_blocksize,
                 args.working_dir,
                 dask_client,
+                do_3D=True,
                 blocksoverlap=blocks_overlaps,
                 diameter=args.diam_mean,
                 min_size=args.min_size,

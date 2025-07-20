@@ -138,6 +138,7 @@ def distributed_eval(
     image_ndim = len(image_shape)
     logger.info((
         f'Segment {image_container_path}:{image_subpath} '
+        f'3D: {do_3D}, '
         f'shape: {image_shape}, '
         f'process blocks: {blocksize} '
         f'timeindex: {timeindex} '
