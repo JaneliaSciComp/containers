@@ -250,9 +250,7 @@ def _open_ome_zarr(data_container, data_subpath,
     ))
 
     dataset_comps = [c for c in dataset_subpath.split('/') if c]
-    # ome_metadata = ImageAttrs.construct(**multiscales_attrs)
     multiscale_metadata = multiscales_attrs.get('multiscales', [])[0]
-    # pprint.pprint(ome_metadata)
     dataset_metadata = None
     # lookup the dataset by path
     for ds in multiscale_metadata.get('datasets', []):
