@@ -80,4 +80,5 @@ if __name__ == '__main__':
     args = args_parser.parse_args()
 
     # run multi-scale segmentation
+    print(f'Run multiscale: {args}')
     _run_multiscale(args)

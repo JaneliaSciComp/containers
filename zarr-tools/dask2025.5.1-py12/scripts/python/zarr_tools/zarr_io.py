@@ -99,7 +99,10 @@ def _lookup_ome_multiscales(data_container, data_subpath):
 
 def _open_ome_zarr(multiscales_group, dataset_subpath, attrs):
 
+    print('!!!!!! OME ATTRS: ', attrs)
     multiscale_metadata = get_multiscales(attrs)
+    print('!!!!!! MULTISCALE ATTRS: ', attrs)
+
     dataset_metadata = get_dataset(multiscale_metadata, dataset_subpath)
 
     if dataset_metadata is None:

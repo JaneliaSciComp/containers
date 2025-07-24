@@ -97,8 +97,6 @@ def create_multiscale(multiscale_group: zarr.Group,
 
         print(f'Create new dataset for level {new_level} at {new_level_path}')
 
-        print(f'!!!!! ATTRS for {new_level} -> {pyramid_attrs}')
-
         new_dataset_arr = multiscale_group.require_dataset(
             new_level_path,
             shape=new_level_shape,
@@ -126,13 +124,9 @@ def create_multiscale(multiscale_group: zarr.Group,
         dataset_shape = new_level_shape
         dataset_path = new_level_path
 
-    print('!!!!! UPDATE GROUP ATTRS ', multiscale_group.attrs.asdict() , ' -> ', pyramid_attrs)
     multiscale_group.attrs.update({
         'multiscales': [ pyramid_attrs ],
     })
-    print('!!!!! AFTER UPDATE GROUP ATTRS ', multiscale_group.attrs.asdict())
-
-    return None
 
 
 def _downsample(input, output, output_coords, downsampling_factors=(2,2,2), method='mean'):
