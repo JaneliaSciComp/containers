@@ -17,8 +17,6 @@ LABEL python.version="3.12"
 LABEL extra.identifiers.biotools=cellpose
 LABEL bioimagetools.image.authors="goinac@janelia.hhmi.org,rokickik@janelia.hhmi.org"
 
-ARG TARGETPLATFORM
-
 RUN dnf group install -y "Development Tools"
 
 COPY conda-env.yml /tmp/

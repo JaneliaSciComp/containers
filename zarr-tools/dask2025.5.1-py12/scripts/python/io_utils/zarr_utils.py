@@ -1,0 +1,168 @@
+import os
+import re
+import zarr
+
+from utils.ngff_utils import (get_dataset, get_datasets, get_multiscales, has_multiscales)
+
+
+def open(data_path, data_subpath, data_store_name=None, mode='r'):
+    try:
+        data_store_ctor = _get_data_store_ctor(data_path, data_store_name)
+        zarr_container, zarr_subpath = _get_data_store(data_path, data_subpath, data_store_ctor)
+        print(f'Open zarr container: {zarr_container} ({zarr_subpath}), mode: {mode}')
+        data_container = zarr.open(store=zarr_container, mode=mode)
+        data_container_attrs = data_container.attrs.asdict()
+        print(f'!!!!!!!!!!!!!!Data attrs: {data_container} ({zarr_subpath}): {data_container_attrs}')
+
+        multiscales_group, dataset_subpath, multiscales_attrs  = _lookup_ome_multiscales(data_container, data_subpath)
+
+        if multiscales_group is not None:
+            print(f'Open OME ZARR {data_container}:{dataset_subpath}')
+            return _open_ome_zarr(multiscales_group, dataset_subpath, multiscales_attrs)
+        else:
+            print(f'Open Simple ZARR {data_container}:{zarr_subpath}')
+            return _open_simple_zarr(data_container, zarr_subpath)
+    except Exception as e:
+        print(f'Error opening {data_path}:{data_subpath} {e}')
+        raise e
+
+
+def _get_data_store_ctor(data_path, data_store_name):
+    path_comps = os.path.splitext(data_path)
+    ext = path_comps[1]
+    
+    if (ext is not None and ext.lower() == '.n5' or data_store_name == 'n5'):
+        return zarr.N5Store
+    else:
+        return zarr.DirectoryStore
+
+
+def _get_data_store(data_path, data_subpath, data_store_ctor):
+    """
+    This methods adjusts the container and dataset paths such that
+    the container paths always contains a .attrs file
+    """
+    if data_store_ctor is zarr.N5Store:
+        # N5 container path is the same as the data_path
+        # and the subpath is the dataset path
+        print(f'Create N5 store for {data_path}: {data_subpath}')
+        return data_store_ctor(data_path), data_subpath
+
+    print(f'Create ZARR store for {data_path}: { data_subpath}')
+    dataset_path_arg = data_subpath if data_subpath is not None else ''
+    dataset_comps = [c for c in dataset_path_arg.split('/') if c]
+    dataset_comps_index = 0
+
+    # Look for a valid container path - must contain
+    while dataset_comps_index < len(dataset_comps):
+        container_subpath = '/'.join(dataset_comps[0:dataset_comps_index])
+        container_path = f'{data_path}/{container_subpath}'
+        if (os.path.exists(f'{container_path}/.zgroup') or
+            os.path.exists(f'{container_path}/.zattrs') or
+            os.path.exists(f'{container_path}/.zarray') or
+            os.path.exists(f'{container_path}/attributes.json')):
+            break
+        dataset_comps_index = dataset_comps_index + 1
+
+    appended_container_path = '/'.join(dataset_comps[0:dataset_comps_index])
+    container_path = f'{data_path}/{appended_container_path}'
+    new_subpath = '/'.join(dataset_comps[dataset_comps_index:])
+
+    print(f'Found zarr container at {container_path}:{new_subpath}')
+    return data_store_ctor(container_path), new_subpath
+
+
+def _lookup_ome_multiscales(data_container, data_subpath):
+    print(f'lookup OME multiscales group within {data_subpath}')
+    dataset_subpath_arg = data_subpath if data_subpath is not None else ''
+    dataset_comps = [c for c in dataset_subpath_arg.split('/') if c]
+
+    dataset_comps_index = 1
+    while dataset_comps_index < len(dataset_comps):
+        container_item_subpath = '/'.join(dataset_comps[0:dataset_comps_index])
+        container_item = data_container[container_item_subpath]
+        container_item_attrs = container_item.attrs.asdict()
+
+        if has_multiscales(container_item_attrs):
+            print(f'Found multiscales at {container_item_subpath}: {container_item_attrs}')
+            # found a group that has attributes which contain multiscales list
+            return container_item, '/'.join(dataset_comps[dataset_comps_index:]), container_item_attrs
+        else:
+            dataset_comps_index = dataset_comps_index + 1
+
+    # if no multiscales have found - look directly under root
+    data_container_attrs = data_container.attrs.asdict()
+    if has_multiscales(data_container_attrs):
+        # the container itself has multiscales attributes
+        return data_container, '', data_container_attrs
+    else:
+        return None, None, {}
+
+
+def _open_ome_zarr(multiscales_group, dataset_subpath, attrs):
+
+    multiscale_metadata = get_multiscales(attrs)
+    dataset_metadata = get_dataset(multiscale_metadata, dataset_subpath)
+
+    if dataset_metadata is None:
+        # could not find a dataset using the subpath 
+        # look at the last subpath component and get the dataset index from there
+        # e.g., if the subpath looks like:
+        #       '/s<n>' => datasets[n] if n < len(datasets) otherwise datasets[0]
+        dataset_comps = [c for c in dataset_subpath.split('/') if c]
+        dataset_index_comp = dataset_comps[-1]
+        print(f'No dataset was found using {dataset_subpath} - try to use: {dataset_index_comp}')
+        datasets = get_datasets(multiscale_metadata)
+        dataset_index = _extract_numeric_comp(dataset_index_comp)
+        if dataset_index < len(datasets):
+            dataset_metadata = datasets[dataset_index]
+        elif len(datasets) > 0:
+            dataset_metadata =datasets[0]
+        else:
+            raise ValueError(f'No datasets found in {attrs}')
+
+    dataset_path = dataset_metadata.get('path')
+    print(f'Get dataset using path: {dataset_path}')
+    a = multiscales_group[dataset_path] if dataset_path else multiscales_group
+    _update_array_attrs(attrs, dataset_path, a.shape, a.dtype, a.chunks)
+
+    return multiscales_group, attrs, dataset_path
+
+
+def _extract_numeric_comp(v):
+    match = re.match(r'^(\D*)(\d+)$', v)
+    if match:
+        return int(match.groups()[1])
+    else:
+        raise ValueError(f'Invalid component: {v}')
+
+
+def _open_simple_zarr(data_container, data_subpath):
+    a = (data_container[data_subpath] 
+        if data_subpath and data_subpath != '.'
+        else data_container)
+    dataset_comps = [c for c in data_subpath.split('/') if c]
+    parent_group_subpath = '/'.join(dataset_comps[:-1])
+    if parent_group_subpath == '':
+        parent_group = data_container
+    else:
+        parent_group = data_container[parent_group_subpath]
+
+    attrs = parent_group.attrs.asdict()
+    _update_array_attrs(attrs, data_subpath, a.shape, a.dtype, a.chunks)
+    return parent_group, attrs, (dataset_comps[-1] if len(dataset_comps) > 0 else '')
+
+
+def _update_array_attrs(attrs, subpath, shape, dtype, chunks):
+    """
+    Add useful datasets attributes from the array attributes:
+    shape, ndims, data_type, chunksize
+    """
+    attrs.update({
+        'dataset_path': subpath,
+        'dataset_shape': shape,
+        'dataset_dims': len(shape),
+        'dataset_dtype': dtype.name,
+        'dataset_blocksize': chunks,
+    })
+    return attrs
