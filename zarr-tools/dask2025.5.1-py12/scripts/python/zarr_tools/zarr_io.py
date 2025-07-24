@@ -91,8 +91,9 @@ def _lookup_ome_multiscales(data_container, data_subpath):
     # if no multiscales have found - look directly under root
     data_container_attrs = data_container.attrs.asdict()
     if has_multiscales(data_container_attrs):
+        print(f'Found multiscales directly under root: {data_container_attrs}')
         # the container itself has multiscales attributes
-        return data_container, '', data_container_attrs
+        return data_container, data_subpath, data_container_attrs
     else:
         return None, None, {}
 
