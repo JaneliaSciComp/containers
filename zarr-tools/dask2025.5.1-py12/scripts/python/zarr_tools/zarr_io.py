@@ -9,12 +9,10 @@ def open(data_path, data_subpath, data_store_name=None, mode='r'):
     try:
         data_store_ctor = _get_data_store_ctor(data_path, data_store_name)
         zarr_container, zarr_subpath = _get_data_store(data_path, data_subpath, data_store_ctor)
+
         print(f'Open zarr container: {zarr_container} ({zarr_subpath}), mode: {mode}')
         data_container = zarr.open(store=zarr_container, mode=mode)
-        data_container_attrs = data_container.attrs.asdict()
-        print(f'!!!!!!!!!!!!!!Data attrs: {data_container} ({zarr_subpath}): {data_container_attrs}')
-
-        multiscales_group, dataset_subpath, multiscales_attrs  = _lookup_ome_multiscales(data_container, data_subpath)
+        multiscales_group, dataset_subpath, multiscales_attrs  = _lookup_ome_multiscales(data_container, zarr_subpath)
 
         if multiscales_group is not None:
             print(f'Open OME ZARR {data_container}:{dataset_subpath}')

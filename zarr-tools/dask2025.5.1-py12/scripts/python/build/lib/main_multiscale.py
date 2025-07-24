@@ -1,11 +1,13 @@
 import argparse
-import zarr_tools.io_utils.zarr_utils as zarr_utils
+import os
+
+import io_utils.zarr_utils as zarr_utils
 
 from dask.distributed import (Client, LocalCluster)
 
-from zarr_utils.multiscale import create_multiscale
+from multiscale import create_multiscale
 
-from zarr_utils.utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
+from utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
 
 
 
