@@ -1,11 +1,10 @@
 import argparse
-import zarr_tools.io_utils.zarr_utils as zarr_utils
 
 from dask.distributed import (Client, LocalCluster)
 
-from zarr_utils.multiscale import create_multiscale
-
-from zarr_utils.utils.configure_dask import (load_dask_config, ConfigureWorkerPlugin)
+from zarr_tools.zarr_io import open_zarr
+from zarr_tools.multiscale import create_multiscale
+from zarr_tools.dask_tools import (load_dask_config, ConfigureWorkerPlugin)
 
 
 
@@ -65,7 +64,7 @@ def _run_multiscale(args):
     worker_config = ConfigureWorkerPlugin(worker_cpus=args.worker_cpus)
     dask_client.register_plugin(worker_config, name='WorkerConfig')
 
-    dataset_container, dataset_attrs, dataset_path = zarr_utils.open(
+    dataset_container, dataset_attrs, dataset_path = open_zarr(
         args.input, args.input_subpath, mode='a'
     )
 

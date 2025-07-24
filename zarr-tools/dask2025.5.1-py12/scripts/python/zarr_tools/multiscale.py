@@ -1,16 +1,13 @@
-import dask.array as da
 import functools
 import numpy as np
 import re
-import xarray as xr
 import zarr
 
 from dask.array.core import normalize_chunks, slices_from_chunks
 from dask.distributed import Client
-from utils.ngff_utils import (get_dataset_transformations, get_first_space_axis,
+from .ngff.ngff_utils import (get_dataset_transformations, get_first_space_axis,
                               get_multiscales, add_new_dataset)
-from typing import Tuple
-from xarray_multiscale import multiscale, downscale, windowed_mean, windowed_mode
+from xarray_multiscale import windowed_mean, windowed_mode
 
 
 def create_multiscale(multiscale_group: zarr.Group,

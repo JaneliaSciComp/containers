@@ -1,18 +1,20 @@
 # Create final image
-FROM  ghcr.io/janeliascicomp/dask:2024.4.1-py11-ol9
+FROM  ghcr.io/janeliascicomp/dask:2025.5.1-py12-ol9
 ARG TARGETPLATFORM
 ARG GIT_BRANCH=dev
 ARG GIT_COMMIT=982c790
 
-RUN dnf install -y git
+RUN dnf group install -y "Development Tools"
 
-WORKDIR /tmp-build-dir
+COPY conda-env.yml /tmp/
 
-RUN git clone --branch ${GIT_BRANCH} --depth 1 https://github.com/JaneliaSciComp/n5-tools-dask.git . \
- && git reset --hard ${GIT_COMMIT} \
- && mamba env update -n base -f conda-env.yml
+RUN mamba env update -n base -f /tmp/conda-env.yml
 
-WORKDIR /opt/scripts/n5-tools
-RUN cp /tmp-build-dir/src/* /opt/scripts/n5-tools
+WORKDIR /opt/scripts/zarr-tools
 
-RUN echo "Remote tmp build dir" && rm -rf /tmp-build-dir
+RUN mkdir -p /etc/zarr-tools/config
+
+COPY configs/* /etc/zarr-tools/config/
+COPY scripts/python /opt/scripts/zarr-tools
+
+RUN pip install .

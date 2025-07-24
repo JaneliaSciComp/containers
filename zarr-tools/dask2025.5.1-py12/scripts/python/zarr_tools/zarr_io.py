@@ -2,10 +2,10 @@ import os
 import re
 import zarr
 
-from utils.ngff_utils import (get_dataset, get_datasets, get_multiscales, has_multiscales)
+from .ngff.ngff_utils import (get_dataset, get_datasets, get_multiscales, has_multiscales)
 
 
-def open(data_path, data_subpath, data_store_name=None, mode='r'):
+def open_zarr(data_path, data_subpath, data_store_name=None, mode='r'):
     try:
         data_store_ctor = _get_data_store_ctor(data_path, data_store_name)
         zarr_container, zarr_subpath = _get_data_store(data_path, data_subpath, data_store_ctor)
@@ -122,7 +122,7 @@ def _open_ome_zarr(multiscales_group, dataset_subpath, attrs):
     dataset_path = dataset_metadata.get('path')
     print(f'Get dataset using path: {dataset_path}')
     a = multiscales_group[dataset_path] if dataset_path else multiscales_group
-    _update_array_attrs(attrs, dataset_path, a.shape, a.dtype, a.chunks)
+    _set_array_attrs(attrs, dataset_path, a.shape, a.dtype, a.chunks)
 
     return multiscales_group, attrs, dataset_path
 
@@ -147,11 +147,11 @@ def _open_simple_zarr(data_container, data_subpath):
         parent_group = data_container[parent_group_subpath]
 
     attrs = parent_group.attrs.asdict()
-    _update_array_attrs(attrs, data_subpath, a.shape, a.dtype, a.chunks)
+    _set_array_attrs(attrs, data_subpath, a.shape, a.dtype, a.chunks)
     return parent_group, attrs, (dataset_comps[-1] if len(dataset_comps) > 0 else '')
 
 
-def _update_array_attrs(attrs, subpath, shape, dtype, chunks):
+def _set_array_attrs(attrs, subpath, shape, dtype, chunks):
     """
     Add useful datasets attributes from the array attributes:
     shape, ndims, data_type, chunksize
