@@ -59,4 +59,8 @@ if [[ -z "${platform_arg}" ]]; then
     args+=("--load")
 fi
 
+if [[ -z "${push_container_arg}" ]]; then
+    args+=("--push")
+fi
+
 build "${args[@]}"
