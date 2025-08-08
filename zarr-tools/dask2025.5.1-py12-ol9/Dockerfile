@@ -17,4 +17,4 @@ RUN mkdir -p /etc/zarr-tools/config
 COPY configs/* /etc/zarr-tools/config/
 COPY scripts/python /opt/scripts/zarr-tools
 
-RUN pip install .
+RUN pip install --root-user-action ignore .
