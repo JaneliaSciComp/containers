@@ -2,7 +2,7 @@
 FROM ghcr.io/janeliascicomp/zarr-tools:dask2025.5.1-py12-ol9
 ARG TARGETPLATFORM
 ARG BIGSTREAM_BRANCH=ome-dev
-ARG BIGSTREAM_COMMIT=9ed9f82
+ARG BIGSTREAM_COMMIT=d8dd443
 
 RUN dnf install -y \
         git \
@@ -11,7 +11,7 @@ RUN dnf install -y \
 WORKDIR /app/bigstream
 
 # install bigstream from the specified commit
-RUN git clone --branch ${BIGSTREAM_BRANCH} --depth 1 https://github.com/JaneliaSciComp/bigstream.git . \
+RUN git clone --branch ${BIGSTREAM_BRANCH} --depth 1 --progress https://github.com/JaneliaSciComp/bigstream.git . \
  && git reset --hard ${BIGSTREAM_COMMIT}
 
 # Remove the data and the git repo to reduce space
