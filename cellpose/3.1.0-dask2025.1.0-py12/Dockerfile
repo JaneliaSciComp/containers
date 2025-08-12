@@ -1,4 +1,4 @@
-FROM  ghcr.io/janeliascicomp/dask:2025.1.0-py12-ol9
+FROM ghcr.io/janeliascicomp/dask:2025.1.0-py12-ol9
 
 LABEL software="cellpose"
 LABEL version="3"
