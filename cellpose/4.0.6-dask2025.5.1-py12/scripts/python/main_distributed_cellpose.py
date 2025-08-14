@@ -260,6 +260,9 @@ def _run_segmentation(args):
         else:
             expansion = 1.
         voxel_spacing /= expansion
+        spatial_ndims = len(voxel_spacing)
+    else:
+        spatial_ndims = 3 # assume 3D for now
 
     logger.info(f'Image data shape/dim/dtype: {image_shape}, {image_ndim}, {image_dtype}')
     
@@ -324,9 +327,10 @@ def _run_segmentation(args):
                 process_blocksize,
                 args.working_dir,
                 dask_client,
-                do_3D=True,
-                blocksoverlap=blocks_overlaps,
                 diameter=args.diam_mean,
+                spatial_ndims=spatial_ndims,
+                do_3D=args.do_3D,
+                blocksoverlap=blocks_overlaps,
                 min_size=args.min_size,
                 anisotropy=anisotropy,
                 z_axis=z_axis,

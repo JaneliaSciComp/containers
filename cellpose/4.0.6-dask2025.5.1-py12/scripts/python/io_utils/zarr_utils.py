@@ -348,9 +348,11 @@ def _get_array_selection(arr, axes, timeindex: int | None,
     if selection_exists:
         try:
             # try to select the data using the selector
-            return arr[tuple(selector)]
+            block_slice_coords = tuple(selector)
+            logger.debug(f'Get block at {block_slice_coords}')
+            return arr[block_slice_coords]
         except Exception  as e:
-            logger.exception(f'Error selecting data with selector {selector}')
+            logger.exception(f'Error selecting data with selector {tuple(selector)}')
             raise e
     else:
         return arr

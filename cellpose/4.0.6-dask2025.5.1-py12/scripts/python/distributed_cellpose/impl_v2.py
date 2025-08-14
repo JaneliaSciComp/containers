@@ -42,6 +42,7 @@ def distributed_eval(
         mask=None,
         preprocessing_steps=[],
         diameter=None,
+        spatial_ndims=3,
         do_3D=True,
         z_axis=0,
         channel_axis=None,

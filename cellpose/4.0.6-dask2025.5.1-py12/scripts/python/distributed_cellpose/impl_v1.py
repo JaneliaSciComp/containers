@@ -9,6 +9,7 @@ import numpy as np
 import scipy
 import time
 import torch
+import traceback
 
 import io_utils.read_utils as read_utils
 import io_utils.zarr_utils as zarr_utils
@@ -36,6 +37,7 @@ def distributed_eval(
         mask=None,
         preprocessing_steps=[],
         diameter=None,
+        spatial_ndims=3,
         do_3D=True,
         z_axis=0,
         channel_axis=None,
@@ -138,6 +140,7 @@ def distributed_eval(
     image_ndim = len(image_shape)
     logger.info((
         f'Segment {image_container_path}:{image_subpath} '
+        f'Spatial NDIMS: {spatial_ndims}, '
         f'3D: {do_3D}, '
         f'shape: {image_shape}, '
         f'process blocks: {blocksize} '
@@ -160,10 +163,11 @@ def distributed_eval(
         image_shape, blocksize, blocksoverlap_arr, mask,
     )
 
-    if (do_3D and len(image_shape) > 3 or 
-        not do_3D and len(image_shape) > 2):
-        segmentation_shape = image_shape[-3:] if do_3D else image_shape[-2:]
-        segmentation_block = blocksize[-3:] if do_3D else blocksize[-2:]
+    if spatial_ndims < len(image_shape):
+        # if image has additional axes for channels and/or timepoints
+        # we are only interested in spatial dimensions
+        segmentation_shape = image_shape[-spatial_ndims:]
+        segmentation_block = blocksize[-spatial_ndims:]
     else:
         segmentation_shape = image_shape
         segmentation_block = blocksize
@@ -183,7 +187,11 @@ def distributed_eval(
         data_store_name='zarr',
     )
 
-    logger.info(f'Start segmenting: {len(block_indices)} {blocksize} blocks with overlap {blocksoverlap}')
+    logger.info((
+        f'Start segmenting: {len(block_indices)} {blocksize} blocks '
+        f'with overlap {blocksoverlap} '
+        f'from a {image_shape} image'
+    ))
 
     futures = dask_client.map(
         process_block,
@@ -200,6 +208,7 @@ def distributed_eval(
         preprocessing_steps=preprocessing_steps,
         model_type=model_type,
         diameter=diameter,
+        spatial_ndims=spatial_ndims,
         do_3D=do_3D,
         z_axis=z_axis,
         channel_axis=channel_axis,
@@ -250,11 +259,10 @@ def distributed_eval(
         f'Relabel {box_ids.shape} blocks of type {box_ids.dtype} - '
         f'use {len(faces)} faces for merging labels'
     ))
-    if (do_3D and len(image_shape) > 3 or 
-        not do_3D and len(image_shape) > 2):
+    if spatial_ndims < len(image_shape):
         label_block_indices = []
         for bi in block_indices:
-            label_bi = bi[-3:] if do_3D else bi[-2:]
+            label_bi = bi[-spatial_ndims:]
             label_block_indices.append(tuple(label_bi))
     else:
         label_block_indices = block_indices
@@ -291,6 +299,7 @@ def process_block(
     diameter=None,
     min_size=15,
     anisotropy=None,
+    spatial_ndims=3,
     do_3D=True,
     normalize=True,
     normalize_lowhigh=None,
@@ -415,6 +424,7 @@ def process_block(
         f'blocksize: {blocksize}, '
         f'blocksoverlap: {blocksoverlap}, '
         f'model_type: {model_type}, '
+        f'spatial_ndims: {spatial_ndims}, '
         f'do_3D: {do_3D}, '
         f'diameter: {diameter}, '
         f'z_axis: {z_axis}, '
@@ -435,6 +445,7 @@ def process_block(
         crop, 
         preprocessing_steps,
         model_type=model_type,
+        spatial_ndims=spatial_ndims,
         do_3D=do_3D,
         normalize=normalize,
         normalize_lowhigh=normalize_lowhigh,
@@ -458,21 +469,12 @@ def process_block(
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
     )
-    if (do_3D and len(image_shape) > 3 or
-        not do_3D and len(image_shape) > 2):
-        ncoords = 3 if do_3D else 2
-        # labels are single channel so if the input was multichannel remove the channel coords
-        labels_image_shape = image_shape[-ncoords:]
-        labels_block_index = block_index[-ncoords:]
-        labels_coords = crop[-ncoords:]
-        labels_overlaps = blocksoverlap[-ncoords:]
-        labels_blocksize = blocksize[-ncoords:]
-    else:
-        labels_image_shape = image_shape
-        labels_block_index = block_index
-        labels_coords = crop
-        labels_overlaps = blocksoverlap
-        labels_blocksize = blocksize
+    # labels are single channel so if the input was multichannel remove the channel coords
+    labels_image_shape = image_shape[-spatial_ndims:]
+    labels_block_index = block_index[-spatial_ndims:]
+    labels_coords = crop[-spatial_ndims:]
+    labels_overlaps = blocksoverlap[-spatial_ndims:]
+    labels_blocksize = blocksize[-spatial_ndims:]
 
     logger.debug((
         f'adjusted labels image shape to {labels_image_shape} '
@@ -512,6 +514,7 @@ def read_preprocess_and_segment(
     diameter=None,
     z_axis=0,
     channel_axis=None,
+    spatial_ndims=3,
     do_3D=True,
     normalize=True,
     normalize_lowhigh=None,
@@ -600,8 +603,7 @@ def read_preprocess_and_segment(
         "tile_norm_smooth3D": normalize_tile_norm_smooth3D,
         "invert": normalize_invert,
     }
-    if (do_3D and len(image_block.shape) == 3 or
-        not do_3D and len(image_block.shape) == 2):
+    if spatial_ndims == len(image_block.shape):
         # if 3D and the block has exactly 3 dimensions
         # or in the case of 2D segmentation the block has exactly 2 dimensions
         # reshape it to include a dimension for the channel
@@ -618,6 +620,7 @@ def read_preprocess_and_segment(
         f'diameter={diameter}, '
         f'min_size={min_size}, '
         f'anisotropy={anisotropy}, '
+        f'ndims={spatial_ndims}, '
         f'do_3D={do_3D}, '
         f'z_axis={z_axis}, '
         f'normalize=False, '
@@ -628,7 +631,8 @@ def read_preprocess_and_segment(
         f'flow3D_smooth={flow3D_smooth}, '
         f'batch_size={gpu_batch_size}, '
     ))
-    labels = model.eval(image_block,
+    try:
+        labels = model.eval(image_block,
                         diameter=diameter,
                         min_size=min_size,
                         anisotropy=anisotropy,
@@ -642,6 +646,26 @@ def read_preprocess_and_segment(
                         flow3D_smooth=flow3D_smooth,
                         batch_size=gpu_batch_size,
                         )[0].astype(np.uint32)
+    except Exception as e:
+        logger.error((
+            f'ERROR eval {image_block.shape} block at {crop} args: '
+            f'diameter={diameter}, '
+            f'min_size={min_size}, '
+            f'anisotropy={anisotropy}, '
+            f'ndims={spatial_ndims}, '
+            f'do_3D={do_3D}, '
+            f'z_axis={z_axis}, '
+            f'normalize=False, '
+            f'channel_axis={channel_axis}, '
+            f'flow_threshold={flow_threshold}, '
+            f'cellprob_threshold={cellprob_threshold}, '
+            f'stitch_threshold={stitch_threshold}, '
+            f'flow3D_smooth={flow3D_smooth}, '
+            f'batch_size={gpu_batch_size}, '
+            f'err={e} {traceback.format_exception(e)}'
+        ))
+        raise e
+
     end_time = time.time()
     unique_labels = np.unique(labels)
     logger.info((
