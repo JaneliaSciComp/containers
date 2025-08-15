@@ -357,7 +357,6 @@ def _run_segmentation(args):
                     use_gpu=args.use_gpu,
                     gpu_device=args.gpu_device,
                 )
-                print('!!!!!!! LABELS SHAPE: ', output_labels.shape)
             else:
                 output_labels = local_eval(
                     args.input,
@@ -389,41 +388,6 @@ def _run_segmentation(args):
                     use_gpu=args.use_gpu,
                     gpu_device=args.gpu_device,
                 )
-                # output_labels = local_eval(
-                #     args.input,
-                #     args.input_subpath,
-                #     args.input_timeindex,
-                #     args.input_channels,
-                #     None, # no cropping => entire image
-                #     preprocessing_steps,
-                #     # model_kwargs,
-                #     model_type=args.segmentation_model,
-                #     # eval_kwargs
-                #     diameter=args.diameter,
-                #     z_axis=z_axis,
-                #     channel_axis=channel_axis,
-                #     spatial_ndims=spatial_ndims,
-                #     do_3D=args.do_3D,
-                #     normalize=not args.no_norm,
-                #     normalize_lowhigh=args.norm_lowhigh,
-                #     normalize_percentile=args.norm_percentile,
-                #     normalize_norm3D=True,
-                #     normalize_sharpen_radius=args.normalize_sharpen_radius,
-                #     normalize_smooth_radius=args.normalize_smooth_radius,
-                #     normalize_invert=args.normalize_invert,
-                #     min_size=args.min_size,
-                #     max_size_fraction=args.max_size_fraction,
-                #     niter=args.niter,
-                #     anisotropy=anisotropy,
-                #     flow_threshold=args.flow_threshold,
-                #     cellprob_threshold=args.cellprob_threshold,
-                #     stitch_threshold=args.stitch_threshold,
-                #     flow3D_smooth=args.flow3D_smooth,
-                #     use_gpu=args.use_gpu,
-                #     gpu_device=args.gpu_device,
-                #     gpu_batch_size=args.batch_size,
-                # )
-                print('!!!!!!! LABELS SHAPE: ', output_labels.shape)
 
             labels_group_attrs = prepare_parent_group_attrs(
                 os.path.basename(args.output),
