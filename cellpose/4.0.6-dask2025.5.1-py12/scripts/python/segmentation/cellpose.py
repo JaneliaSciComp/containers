@@ -43,6 +43,8 @@ def distributed_eval(
         channel_axis=None,
         anisotropy=None,
         min_size=15,
+        max_size_fraction=0.4,
+        niter=None,
         normalize=True,
         normalize_lowhigh=None,
         normalize_percentile=None,
@@ -56,14 +58,10 @@ def distributed_eval(
         cellprob_threshold=0,
         stitch_threshold=0,
         flow3D_smooth=1,
-        iou_threshold=0,
-        iou_depth=1,
         label_dist_th=1.0,
-        persist_labeled_blocks=True,
         use_gpu=False,
         gpu_device=None,
         gpu_batch_size=8,
-        test_mode=False,
 ):
     """
     Evaluate a cellpose model on overlapping blocks of a big image.
@@ -129,7 +127,7 @@ def distributed_eval(
     Returns
     -------
     Two values are returned:
-    (1) A reference to the zarr array on disk containing the stitched cellpose
+    (1) A reference to a dask array containing the stitched cellpose
         segments for your entire image
     (2) Bounding boxes for every segment. This is a list of tuples of slices:
         [(slice(z1, z2), slice(y1, y2), slice(x1, x2)), ...]
@@ -214,6 +212,8 @@ def distributed_eval(
         channel_axis=channel_axis,
         anisotropy=anisotropy,
         min_size=min_size,
+        max_size_fraction=max_size_fraction,
+        niter=niter,
         normalize=normalize,
         normalize_lowhigh=normalize_lowhigh,
         normalize_percentile=normalize_percentile,
@@ -230,7 +230,6 @@ def distributed_eval(
         use_gpu=use_gpu,
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
-        test_mode=test_mode,
     )
 
     results = dask_client.gather(futures)
@@ -247,11 +246,6 @@ def distributed_eval(
     ))
 
     segmentation_da = da.from_zarr(labels_zarr)
-
-    if test_mode:
-        # return the labeled blocks before merging the labels
-        logger.info('Return labeled blocks')
-        return segmentation_da, []
 
     boxes = [box for sublist in boxes_ for box in sublist]
     box_ids = np.concatenate(box_ids_).astype(np.uint32)
@@ -283,6 +277,136 @@ def distributed_eval(
     return relabeled, merged_boxes
 
 
+def local_eval(
+        image_container_path,
+        image_subpath,
+        timeindex,
+        image_channels,
+        model_type,
+        preprocessing_steps=[],
+        diameter=None,
+        spatial_ndims=3,
+        do_3D=True,
+        z_axis=0,
+        channel_axis=None,
+        anisotropy=None,
+        min_size=15,
+        max_size_fraction=0.4,
+        niter=None,
+        normalize=True,
+        normalize_lowhigh=None,
+        normalize_percentile=None,
+        normalize_norm3D=True,
+        normalize_sharpen_radius=0,
+        normalize_smooth_radius=0,
+        normalize_tile_norm_blocksize=0,
+        normalize_tile_norm_smooth3D=1,
+        normalize_invert=False,
+        flow_threshold=0.4,
+        cellprob_threshold=0,
+        stitch_threshold=0,
+        flow3D_smooth=1,
+        use_gpu=False,
+        gpu_device=None,
+        gpu_batch_size=8,
+):
+    """
+    Evaluate a cellpose model on the entire image
+    without distributing it to any dask cluster
+    Optionally run preprocessing steps on the blocks before running cellpose.
+
+    Parameters
+    ----------
+    image_container_path : string
+        Path to the image data container. Supported formats are .nrrd, .tif, .tiff, .npy, .n5, and .zarr.
+
+    image_subpath : string
+        Dataset path relative to path.
+
+    timeindex : string
+        if the image is a 5-D TCZYX ndarray specify which timeindex to use
+
+    image_channels : sequence[int] | None
+        if the image is a multichannel image specify which channels to use
+
+    preprocessing_steps : list of tuples (default: the empty list)
+        Optionally apply an arbitrary pipeline of preprocessing steps
+        to the image blocks before running cellpose.
+
+        Must be in the following format:
+        [(f, {'arg1':val1, ...}), ...]
+        That is, each tuple must contain only two elements, a function
+        and a dictionary. The function must have the following signature:
+        def F(image, ..., crop=None)
+        That is, the first argument must be a numpy array, which will later
+        be populated by the image data. The function must also take a keyword
+        argument called crop, even if it is not used in the function itself.
+        All other arguments to the function are passed using the dictionary.
+        Here is an example:
+
+        def F(image, sigma, crop=None):
+            return gaussian_filter(image, sigma)
+        def G(image, radius, crop=None):
+            return median_filter(image, radius)
+        preprocessing_steps = [(F, {'sigma':2.0}), (G, {'radius':4})]
+
+    Returns
+    -------
+    A reference to a dask array containing the stitched cellpose
+    segments for your entire image.
+    The reason for returning a dask array and not just the labels numpy array
+    is to make the output compatible to the one returned by the distributed version
+    
+    """
+    logger.info((
+        f'Segment (locally) {image_container_path}:{image_subpath} '
+        f'Spatial NDIMS: {spatial_ndims}, '
+        f'3D: {do_3D}, '
+        f'timeindex: {timeindex} '
+        f'image channels {image_channels} '
+    ))
+
+    labels = read_preprocess_and_segment(
+        image_container_path,
+        image_subpath,
+        timeindex,
+        image_channels,
+        None, # no cropping => entire image
+        preprocessing_steps,
+        # model_kwargs,
+        model_type=model_type,
+        # eval_kwargs
+        diameter=diameter,
+        z_axis=z_axis,
+        channel_axis=channel_axis,
+        spatial_ndims=spatial_ndims,
+        do_3D=do_3D,
+        normalize=normalize,
+        normalize_lowhigh=normalize_lowhigh,
+        normalize_percentile=normalize_percentile,
+        normalize_norm3D=normalize_norm3D,
+        normalize_sharpen_radius=normalize_sharpen_radius,
+        normalize_smooth_radius=normalize_smooth_radius,
+        normalize_tile_norm_blocksize=normalize_tile_norm_blocksize,
+        normalize_tile_norm_smooth3D=normalize_tile_norm_smooth3D,
+        normalize_invert=normalize_invert,
+        min_size=min_size,
+        max_size_fraction=max_size_fraction,
+        niter=niter,
+        anisotropy=anisotropy,
+        flow_threshold=flow_threshold,
+        cellprob_threshold=cellprob_threshold,
+        stitch_threshold=stitch_threshold,
+        flow3D_smooth=flow3D_smooth,
+        use_gpu=use_gpu,
+        gpu_device=gpu_device,
+        gpu_batch_size=gpu_batch_size,
+    )
+    # create the dask array as a single chunk
+    return da.from_array(labels,
+                         chunks=(1,) * spatial_ndims)
+
+
 def process_block(
     block_index,
     crop,
@@ -298,6 +422,8 @@ def process_block(
     model_type=None,
     diameter=None,
     min_size=15,
+    max_size_fraction=0.4,
+    niter=None,
     anisotropy=None,
     spatial_ndims=3,
     do_3D=True,
@@ -319,7 +445,6 @@ def process_block(
     use_gpu=False,
     gpu_device=None,
     gpu_batch_size=8,
-    test_mode=False,
 ):
     """
     Preprocess and segment one block, of many, with eventual merger
@@ -331,10 +456,6 @@ def process_block(
     (4) Remap segment IDs to globally unique values.
     (5) Write segments to disk.
     (6) Get segmented block faces.
-
-    A user may want to test this function on one block before running
-    the distributed function. When test_mode=True, steps (5) and (6)
-    are omitted and replaced with:
 
     (5) return remapped segments as a numpy array, boxes, and box_ids
 
@@ -384,39 +505,12 @@ def process_block(
         A location where segments can be stored temporarily before
         merger is complete
 
-    test_mode : bool (default: False)
-        The primary use case of this function is to be called by
-        distributed_eval (defined later in this same module). However
-        you may want to call this function manually to test what
-        happens to an individual block; this is a good idea before
-        ramping up to process big data and also useful for debugging.
-
-        When test_mode is False (default) this function stores
-        the segments and returns objects needed for merging between
-        blocks.
-
-        When test_mode is True this function does not store the
-        segments, and instead returns them to the caller as a numpy
-        array. The boxes and box IDs are also returned. When test_mode
-        is True, you can supply dummy values for many of the inputs,
-        such as:
-
-        block_index = (0, 0, 0)
-        output_zarr=None
-
     Returns
     -------
-    If test_mode == False (the default), three things are returned:
-        faces : a list of numpy arrays - the faces of the block segments
-        boxes : a list of crops (tuples of slices), bounding boxes of segments
-        box_ids : 1D numpy array, parallel to boxes, the segment IDs of the
-                  boxes
-
-    If test_mode == True, three things are returned:
-        segments : np.ndarray containing the segments with globally unique IDs
-        boxes : a list of crops (tuples of slices), bounding boxes of segments
-        box_ids : 1D numpy array, parallel to boxes, the segment IDs of the
-                  boxes
+    faces : a list of numpy arrays - the faces of the block segments
+    boxes : a list of crops (tuples of slices), bounding boxes of segments
+    box_ids : 1D numpy array, parallel to boxes, the segment IDs of the
+                boxes
     """
     logger.info((
         f'RUNNING BLOCK: {block_index}, '
@@ -430,6 +524,8 @@ def process_block(
         f'z_axis: {z_axis}, '
         f'channel_axis: {channel_axis}, '
         f'min_size: {min_size}, '
+        f'max_size_fraction: {max_size_fraction}, '
+        f'niter: {niter}, '
         f'anisotropy: {anisotropy}, '
         f'flow_threshold: {flow_threshold}, '
         f'cellprob_threshold: {cellprob_threshold}, '
@@ -460,6 +556,8 @@ def process_block(
         channel_axis=channel_axis,
         diameter=diameter,
         min_size=min_size,
+        max_size_fraction=max_size_fraction,
+        niter=niter,
         anisotropy=anisotropy,
         flow_threshold=flow_threshold,
         cellprob_threshold=cellprob_threshold,
@@ -493,9 +591,6 @@ def process_block(
 
     labels_output_zarr[tuple(labels_coords)] = segmentation
 
-    if test_mode:
-        return segmentation, boxes, remap
-
     faces = block_faces(segmentation)
     return faces, boxes, remap
 
@@ -526,6 +621,8 @@ def read_preprocess_and_segment(
     normalize_tile_norm_smooth3D=1,
     normalize_invert=False,
     min_size=15,
+    max_size_fraction=0.4,
+    niter=None,
     anisotropy=None,
     flow_threshold=0.4,
     cellprob_threshold=0,
@@ -619,6 +716,8 @@ def read_preprocess_and_segment(
         f'Eval {image_block.shape} block at {crop} args: '
         f'diameter={diameter}, '
         f'min_size={min_size}, '
+        f'max_size_fraction={max_size_fraction}, '
+        f'niter={niter}, '
         f'anisotropy={anisotropy}, '
         f'ndims={spatial_ndims}, '
         f'do_3D={do_3D}, '
@@ -635,6 +734,8 @@ def read_preprocess_and_segment(
         labels = model.eval(image_block,
                         diameter=diameter,
                         min_size=min_size,
+                        max_size_fraction=max_size_fraction,
+                        niter=niter,
                         anisotropy=anisotropy,
                         do_3D=do_3D,
                         z_axis=z_axis,
@@ -651,6 +752,8 @@ def read_preprocess_and_segment(
             f'ERROR eval {image_block.shape} block at {crop} args: '
             f'diameter={diameter}, '
             f'min_size={min_size}, '
+            f'max_size_fraction={max_size_fraction}, '
+            f'niter={niter}, '
             f'anisotropy={anisotropy}, '
             f'ndims={spatial_ndims}, '
             f'do_3D={do_3D}, '
@@ -668,8 +771,12 @@ def read_preprocess_and_segment(
 
     end_time = time.time()
     unique_labels = np.unique(labels)
+    logged_block_message = (f'for block: {crop}' 
+                            if crop is not None
+                            else 'for entire image')
     logger.info((
-        f'Finished model eval for block: {crop} '
+        'Finished model eval '
+        f'{logged_block_message} => '
         f'found {len(unique_labels)} unique labels '
         f'in {end_time-start_time}s '
     ))

@@ -9,9 +9,8 @@ from cellpose.cli import get_arg_parser
 
 from dask.distributed import (Client, LocalCluster)
 
-from distributed_cellpose.impl_v1 import (distributed_eval as eval_with_labels_dt_merge)
-from distributed_cellpose.impl_v2 import (distributed_eval as eval_with_iou_merge)
-from distributed_cellpose.preprocessing import get_preprocessing_steps
+from segmentation.cellpose import (distributed_eval, local_eval)
+from segmentation.preprocessing import get_preprocessing_steps
 
 from io_utils.zarr_utils import prepare_parent_group_attrs
 
@@ -113,15 +112,31 @@ def _define_args():
                              dest='blocks_overlaps',
                              type=_inttuple,
                              help='Blocks overlaps as a tuple (x,y,z).')
-    args_parser.add_argument('--eval-channels', '--eval_channels',
-                             dest='eval_channels',
-                             type=_inttuple,
-                             help='Cellpose channels: 0,0 - gray images')
+    args_parser.add_argument('--max-size-fraction', '--max_size_fraction',
+                             dest='max_size_fraction',
+                             type=float,
+                             default=0.4,
+                             help='Fraction of the total image for which the masks are discarded')
     args_parser.add_argument('--norm-lowhigh', '--norm_lowhigh',
+                             dest='norm_lowhigh',
                              nargs=2,  # Require exactly two values
                              metavar=('VALUE1', 'VALUE2'),
-                             help="Provide two values to set low and high normalize value"
-    )
+                             help="Provide two values to set low and high normalize value")
+    args_parser.add_argument('--normalize-sharpen-radius', '--normalize_sharpen_radius',
+                             dest='normalize_sharpen_radius',
+                             type=float,
+                             default=0,
+                             help='Sharpen radius used for normalization')
+    args_parser.add_argument('--normalize-smooth-radius', '--normalize_smooth_radius',
+                             dest='normalize_smooth_radius',
+                             type=float,
+                             default=0,
+                             help='Smooth radius used for normalization')
+    args_parser.add_argument('--normalize-invert', '--normalize_invert',
+                             dest='normalize_invert',
+                             action='store_true',
+                             default=False,
+                             help="Normalize invert")
     args_parser.add_argument('--expansion-factor', '--expansion_factor',
                              dest='expansion_factor',
                              type=float,
@@ -134,13 +149,12 @@ def _define_args():
                              default=False,
                              help='If true it uses only CellposeModel to eval otherwise it uses both CellposeModel and SizeModel')
 
-    args_parser.add_argument('--test-mode', '--test_mode',
-                             dest='test_mode',
-                             action='store_true',
-                             default=False,
-                             help='Test-mode')
-
     distributed_args = args_parser.add_argument_group("Distributed Arguments")
+    distributed_args.add_argument('--non-distributed', '--non_distributed',
+                                  dest='distributed',
+                                  action='store_false',
+                                  default=True,
+                                  help='If False run eval on entire image')
     distributed_args.add_argument('--dask-scheduler', '--dask_scheduler',
                                   dest='dask_scheduler',
                                   type=str, default=None,
@@ -183,17 +197,7 @@ def _define_args():
                                   dest='label_dist_th',
                                   type=float,
                                   default=1.0,
-                                  help='Label distance transform threshold used for merging labels'),
-    distributed_args.add_argument('--save-intermediate-labels',
-                                  action='store_true',
-                                  dest='save_intermediate_labels',
-                                  default=False,
-                                  help='Save intermediate labels as zarr')
-    distributed_args.add_argument('--merge-labels-iou-only', '--merge_labels_iou_only',
-                                  action='store_true',
-                                  dest='merge_labels_with_iou',
-                                  default=False,
-                                  help='Only use IOU to merge labels')
+                                  help='Label distance transform threshold used for merging labels')
     
     distributed_args.add_argument('--preprocessing-steps', '--preprocessing_steps',
                                   dest='preprocessing_steps',
@@ -231,17 +235,20 @@ def _run_segmentation(args):
 
     if args.dask_scheduler:
         dask_client = Client(address=args.dask_scheduler)
-    else:
+    elif args.distributed:
         # use a local asynchronous client
         dask_client = Client(LocalCluster(n_workers=args.local_dask_workers,
                                           threads_per_worker=args.worker_cpus))
+    else:
+        dask_client = None
 
-    logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
-    worker_config = ConfigureWorkerPlugin(models_dir,
-                                          args.logging_config,
-                                          args.verbose,
-                                          worker_cpus=args.worker_cpus)
-    dask_client.register_plugin(worker_config, name='WorkerConfig')
+    if dask_client is not None:
+        logger.info(f'Initialize Dask Worker plugin with: {models_dir}, {args.logging_config}')
+        worker_config = ConfigureWorkerPlugin(models_dir,
+                                              args.logging_config,
+                                              args.verbose,
+                                              worker_cpus=args.worker_cpus)
+        dask_client.register_plugin(worker_config, name='WorkerConfig')
 
     image_data, image_attrs = read_utils.open(args.input, args.input_subpath)
     image_ndim = image_data.ndim
@@ -290,10 +297,6 @@ def _run_segmentation(args):
 
         try:
             logger.info(f'Invoke segmentation for {image_shape} with process blocksize {process_blocksize}')
-            if (args.merge_labels_with_iou):
-                distributed_eval_method = eval_with_iou_merge
-            else:
-                distributed_eval_method = eval_with_labels_dt_merge
 
             if args.anisotropy and args.anisotropy != 1.0:
                 anisotropy = args.anisotropy
@@ -316,41 +319,111 @@ def _run_segmentation(args):
                 channel_axis = args.channel_axis
             else:
                 channel_axis = None
-            # ignore bounding boxes
-            output_labels, _ = distributed_eval_method(
-                args.input,
-                args.input_subpath,
-                image_shape,
-                args.input_timeindex,
-                args.input_channels,
-                args.segmentation_model,
-                process_blocksize,
-                args.working_dir,
-                dask_client,
-                diameter=args.diam_mean,
-                spatial_ndims=spatial_ndims,
-                do_3D=args.do_3D,
-                blocksoverlap=blocks_overlaps,
-                min_size=args.min_size,
-                anisotropy=anisotropy,
-                z_axis=z_axis,
-                channel_axis=channel_axis,
-                normalize=not args.no_norm,
-                normalize_lowhigh=args.norm_lowhigh,
-                normalize_percentile=args.norm_percentile,
-                flow_threshold=args.flow_threshold,
-                cellprob_threshold=args.cellprob_threshold,
-                stitch_threshold=args.stitch_threshold,
-                flow3D_smooth=args.flow3D_smooth,
-                iou_depth=args.iou_depth,
-                iou_threshold=args.iou_threshold,
-                label_dist_th=args.label_dist_th,
-                persist_labeled_blocks=args.save_intermediate_labels,
-                preprocessing_steps=preprocessing_steps,
-                test_mode=args.test_mode,
-                use_gpu=args.use_gpu,
-                gpu_device=args.gpu_device,
-            )
+            if dask_client is not None:
+                # ignore bounding boxes
+                output_labels, _ = distributed_eval(
+                    args.input,
+                    args.input_subpath,
+                    image_shape,
+                    args.input_timeindex,
+                    args.input_channels,
+                    args.segmentation_model,
+                    process_blocksize,
+                    args.working_dir,
+                    dask_client,
+                    diameter=args.diameter,
+                    spatial_ndims=spatial_ndims,
+                    do_3D=args.do_3D,
+                    blocksoverlap=blocks_overlaps,
+                    min_size=args.min_size,
+                    max_size_fraction=args.max_size_fraction,
+                    niter=args.niter,
+                    anisotropy=anisotropy,
+                    z_axis=z_axis,
+                    channel_axis=channel_axis,
+                    normalize=not args.no_norm,
+                    normalize_lowhigh=args.norm_lowhigh,
+                    normalize_percentile=args.norm_percentile,
+                    normalize_norm3D=True,
+                    normalize_sharpen_radius=args.normalize_sharpen_radius,
+                    normalize_smooth_radius=args.normalize_smooth_radius,
+                    normalize_invert=args.normalize_invert,
+                    flow_threshold=args.flow_threshold,
+                    cellprob_threshold=args.cellprob_threshold,
+                    stitch_threshold=args.stitch_threshold,
+                    flow3D_smooth=args.flow3D_smooth,
+                    label_dist_th=args.label_dist_th,
+                    preprocessing_steps=preprocessing_steps,
+                    use_gpu=args.use_gpu,
+                    gpu_device=args.gpu_device,
+                )
+                print('!!!!!!! LABELS SHAPE: ', output_labels.shape)
+            else:
+                output_labels = local_eval(
+                    args.input,
+                    args.input_subpath,
+                    args.input_timeindex,
+                    args.input_channels,
+                    args.segmentation_model,
+                    diameter=args.diameter,
+                    spatial_ndims=spatial_ndims,
+                    do_3D=args.do_3D,
+                    min_size=args.min_size,
+                    max_size_fraction=args.max_size_fraction,
+                    niter=args.niter,
+                    anisotropy=anisotropy,
+                    z_axis=z_axis,
+                    channel_axis=channel_axis,
+                    normalize=not args.no_norm,
+                    normalize_lowhigh=args.norm_lowhigh,
+                    normalize_percentile=args.norm_percentile,
+                    normalize_norm3D=True,
+                    normalize_sharpen_radius=args.normalize_sharpen_radius,
+                    normalize_smooth_radius=args.normalize_smooth_radius,
+                    normalize_invert=args.normalize_invert,
+                    flow_threshold=args.flow_threshold,
+                    cellprob_threshold=args.cellprob_threshold,
+                    stitch_threshold=args.stitch_threshold,
+                    flow3D_smooth=args.flow3D_smooth,
+                    preprocessing_steps=preprocessing_steps,
+                    use_gpu=args.use_gpu,
+                    gpu_device=args.gpu_device,
+                )
+                # output_labels = local_eval(
+                #     args.input,
+                #     args.input_subpath,
+                #     args.input_timeindex,
+                #     args.input_channels,
+                #     None, # no cropping => entire image
+                #     preprocessing_steps,
+                #     # model_kwargs,
+                #     model_type=args.segmentation_model,
+                #     # eval_kwargs
+                #     diameter=args.diameter,
+                #     z_axis=z_axis,
+                #     channel_axis=channel_axis,
+                #     spatial_ndims=spatial_ndims,
+                #     do_3D=args.do_3D,
+                #     normalize=not args.no_norm,
+                #     normalize_lowhigh=args.norm_lowhigh,
+                #     normalize_percentile=args.norm_percentile,
+                #     normalize_norm3D=True,
+                #     normalize_sharpen_radius=args.normalize_sharpen_radius,
+                #     normalize_smooth_radius=args.normalize_smooth_radius,
+                #     normalize_invert=args.normalize_invert,
+                #     min_size=args.min_size,
+                #     max_size_fraction=args.max_size_fraction,
+                #     niter=args.niter,
+                #     anisotropy=anisotropy,
+                #     flow_threshold=args.flow_threshold,
+                #     cellprob_threshold=args.cellprob_threshold,
+                #     stitch_threshold=args.stitch_threshold,
+                #     flow3D_smooth=args.flow3D_smooth,
+                #     use_gpu=args.use_gpu,
+                #     gpu_device=args.gpu_device,
+                #     gpu_batch_size=args.batch_size,
+                # )
+                print('!!!!!!! LABELS SHAPE: ', output_labels.shape)
 
             labels_group_attrs = prepare_parent_group_attrs(
                 os.path.basename(args.output),
@@ -392,12 +465,16 @@ def _run_segmentation(args):
             )
 
             if persisted_labels is not None:
-                r = dask_client.compute(persisted_labels).result()
+                if dask_client is not None:
+                    r = dask_client.compute(persisted_labels).result()
+                else:
+                    r = persisted_labels.compute()
                 logger.info(f'DONE ({r})!')
             else:
                 logger.warning('No segmentation labels were generated')
 
-            dask_client.close()
+            if dask_client is not None:
+                dask_client.close()
 
         except:
             raise

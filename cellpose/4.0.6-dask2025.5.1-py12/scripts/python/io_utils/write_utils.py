@@ -75,7 +75,7 @@ def save(container_path, dataset_subpath,
                                           zarr_output=zarr_data)
     elif container_ext == '.zarr' or not dataset_subpath or dataset_subpath == '.':
         logger.info((
-            f'Persist data as zarr {container_path} '
+            f'Persist {data.dtype} data as zarr {container_path} '
             f'({real_container_path}):{dataset_subpath} '
             f'with shape {shape} and blocksize {blocksize} '
         ))
