@@ -1,6 +1,6 @@
 ARG SPARK_VERSION=3.3.2-scala2.12-java17-ubuntu24.04
-ARG BIGSTITCHER_BRANCH=upgrade-n5-zarr
-ARG BIGSTITCHER_SPARK_GIT_HASH=b4420c2
+ARG BIGSTITCHER_BRANCH=zarr-group-arg
+ARG BIGSTITCHER_SPARK_GIT_HASH=0d7cf0e
 
 # Staged build using builder container with java8
 # because Bigstitcher still needs java8 to build
