@@ -150,11 +150,6 @@ def _define_args():
                              help='If true it uses only CellposeModel to eval otherwise it uses both CellposeModel and SizeModel')
 
     distributed_args = args_parser.add_argument_group("Distributed Arguments")
-    distributed_args.add_argument('--non-distributed', '--non_distributed',
-                                  dest='distributed',
-                                  action='store_false',
-                                  default=True,
-                                  help='If False run eval on entire image')
     distributed_args.add_argument('--dask-scheduler', '--dask_scheduler',
                                   dest='dask_scheduler',
                                   type=str, default=None,
@@ -165,7 +160,8 @@ def _define_args():
                                   help='Dask configuration yaml file')
     distributed_args.add_argument('--local-dask-workers', '--local_dask_workers',
                                   dest='local_dask_workers',
-                                  type=int, default=1,
+                                  type=int,
+                                  default=0,
                                   help='Number of workers when using a local cluster')
     distributed_args.add_argument('--worker-cpus', '--worker_cpus',
                                   dest='worker_cpus',
@@ -235,7 +231,7 @@ def _run_segmentation(args):
 
     if args.dask_scheduler:
         dask_client = Client(address=args.dask_scheduler)
-    elif args.distributed:
+    elif args.local_dask_workers > 0:
         # use a local asynchronous client
         dask_client = Client(LocalCluster(n_workers=args.local_dask_workers,
                                           threads_per_worker=args.worker_cpus))
@@ -311,10 +307,10 @@ def _run_segmentation(args):
                                                           voxel_spacing=voxel_spacing)
             logger.info(f'Preprocessing steps: {preprocessing_steps}')
 
-            if args.z_axis is not None and args.z_axis >= 0:
+            if args.z_axis is not None:
                 z_axis = args.z_axis
             else:
-                z_axis = 0 # default to first axis
+                z_axis = None
             if args.channel_axis is not None:
                 channel_axis = args.channel_axis
             else:
