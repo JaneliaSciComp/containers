@@ -689,7 +689,7 @@ def read_preprocess_and_segment(
                                                                      device=gpu_device)
     else:
         segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
-                                                                device=gpu_device)
+                                                                 device=gpu_device)
     logger.info(f'Segmentation device for {image_block.shape} block {crop}: {segmentation_device}:{gpu}')
     model = cellpose.models.CellposeModel(gpu=gpu,
                                           pretrained_model=model_type,
