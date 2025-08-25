@@ -104,7 +104,11 @@ def open(data_path, data_subpath, data_store_name=None,
             a = (data_container[zarr_subpath] 
                 if zarr_subpath and zarr_subpath != '.'
                 else data_container)
-            ba = a[block_coords] if block_coords is not None else a
+            if block_coords is not None:
+                logger.info(f'Get block at {block_coords}')
+                ba = a[block_coords]
+            else:
+                ba = a
             return ba, a.attrs.asdict()
     except Exception as e:
         logger.error(f'Error opening {data_path}:{data_subpath} {e}')

@@ -643,6 +643,13 @@ def read_preprocess_and_segment(
                                                data_timeindex=data_timeindex,
                                                data_channels=data_channels,
                                                block_coords=crop)
+    # at this point the image block should be in memory
+    # when local processing is used it is possible 
+    # that the block is not in memory yet and it is still a zarr array,
+    # so we force it in memory
+    if image_block is not None and not isinstance(image_block, np.ndarray):
+        image_block = image_block[...]
+
     if anisotropy is None or anisotropy == 1:
         # try to compute it from block's attributes
         anisotropy = compute_block_anisotropy(block_attrs)
@@ -683,7 +690,7 @@ def read_preprocess_and_segment(
     else:
         segmentation_device, gpu = cellpose.models.assign_device(gpu=use_gpu,
                                                                 device=gpu_device)
-    logger.info(f'Segmentation device for block {crop}: {segmentation_device}:{gpu}')
+    logger.info(f'Segmentation device for {image_block.shape} block {crop}: {segmentation_device}:{gpu}')
     model = cellpose.models.CellposeModel(gpu=gpu,
                                           pretrained_model=model_type,
                                           device=segmentation_device)
@@ -705,7 +712,7 @@ def read_preprocess_and_segment(
         # or in the case of 2D segmentation the block has exactly 2 dimensions
         # reshape it to include a dimension for the channel
         new_block_shape = (1,) + image_block.shape
-        logger.debug(f'Reshape block of {image_block.shape} to {new_block_shape}')
+        logger.debug(f'Reshape {type(image_block)} block of {image_block.shape} to {new_block_shape}')
         image_block = image_block.reshape(new_block_shape)
 
     if normalize:
