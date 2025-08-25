@@ -143,12 +143,6 @@ def _define_args():
                              default=0.,
                              help='Sample expansion factor')
 
-    args_parser.add_argument('--use-model-only-to-eval', '--use_model_only_to_eval',
-                             dest='eval_only_with_model',
-                             action='store_true',
-                             default=False,
-                             help='If true it uses only CellposeModel to eval otherwise it uses both CellposeModel and SizeModel')
-
     distributed_args = args_parser.add_argument_group("Distributed Arguments")
     distributed_args.add_argument('--dask-scheduler', '--dask_scheduler',
                                   dest='dask_scheduler',
@@ -177,18 +171,8 @@ def _define_args():
     distributed_args.add_argument('--model',
                                   dest='segmentation_model',
                                   type=str,
-                                  default='cyto3',
+                                  default='cpsam',
                                   help='A builtin segmentation model or a model added to the cellpose models directory')
-    distributed_args.add_argument('--iou-threshold', '--iou_threshold',
-                                  dest='iou_threshold',
-                                  type=float,
-                                  default=0,
-                                  help='Intersection over union threshold')
-    distributed_args.add_argument('--iou-depth', '--iou_depth',
-                                  dest='iou_depth',
-                                  type=int,
-                                  default=1,
-                                  help='Intersection over union depth')
     distributed_args.add_argument('--label-distance-threshold', '--label-dist-th',
                                   dest='label_dist_th',
                                   type=float,
@@ -230,12 +214,15 @@ def _run_segmentation(args):
         get_user_models()
 
     if args.dask_scheduler:
+        logger.info(f'Create dask client for {args.dask_scheduler}')
         dask_client = Client(address=args.dask_scheduler)
     elif args.local_dask_workers > 0:
         # use a local asynchronous client
+        logger.info(f'Create local dask client with {args.local_dask_workers} local workers')
         dask_client = Client(LocalCluster(n_workers=args.local_dask_workers,
                                           threads_per_worker=args.worker_cpus))
     else:
+        logger.info('Use in process cellpose segmentation')
         dask_client = None
 
     if dask_client is not None:
