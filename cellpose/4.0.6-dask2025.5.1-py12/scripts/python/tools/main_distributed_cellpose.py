@@ -159,7 +159,7 @@ def _define_args():
                                   help='Number of workers when using a local cluster')
     distributed_args.add_argument('--worker-cpus', '--worker_cpus',
                                   dest='worker_cpus',
-                                  type=int, default=0,
+                                  type=int, default=1,
                                   help='Number of cpus allocated to a dask worker')
     distributed_args.add_argument('--device', required=False, default='0', type=str,
                                   dest='device',

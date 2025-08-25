@@ -150,11 +150,13 @@ def distributed_eval(
         blocksoverlap = [int(s * 0.1) for s in blocksize]
     elif isinstance(blocksoverlap, (int, float)):
         blocksoverlap = [int(blocksoverlap)] * image_ndim
-    else:
+    elif (not (isinstance(blocksoverlap, tuple) or isinstance(blocksoverlap, list)) or
+          len(blocksoverlap) != image_ndim):
         raise ValueError((
             f'Invalid blocksoverlap {blocksoverlap} of type {type(blocksoverlap)} '
-            f'- expected tuple with same size as image dimensions: {image_ndim}'
+            f'- expected number or tuple with same size as image dimensions: {image_ndim}'
         ))
+    # else leave blocksoverlap as is
 
     blocksoverlap_arr = np.array(blocksoverlap, dtype=int)
     block_indices, block_crops = get_block_crops(
