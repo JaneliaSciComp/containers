@@ -3,7 +3,7 @@ from ome_zarr_models.v04.image import (Dataset)
 
 def add_new_dataset(multiscales_attrs, dataset_path, scale_transform, translation_transform):
     datasets = multiscales_attrs.get('datasets', [])
-    dataset_paths = multiscales_attrs.get('paths', [])
+    dataset_paths = [ds.get('path') for ds in datasets if ds.get('path', None)]
 
     if scale_transform is not None:
         dataset = Dataset.build(path=dataset_path,
