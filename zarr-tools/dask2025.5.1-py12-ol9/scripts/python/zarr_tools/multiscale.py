@@ -95,7 +95,10 @@ def create_multiscale(multiscale_group: zarr.Group,
             translation_transform=new_level_translation
         )
 
-        print(f'Create new dataset for level {new_level} at {new_level_path}')
+        print((
+            f'Create new dataset for level {new_level} at {new_level_path} '
+            f'pyramid_attrs -> {pyramid_attrs} '
+        ))
 
         new_dataset_arr = multiscale_group.require_dataset(
             new_level_path,
