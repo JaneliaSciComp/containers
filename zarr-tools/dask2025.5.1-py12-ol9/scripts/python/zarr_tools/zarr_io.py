@@ -32,7 +32,7 @@ def _get_data_store_ctor(data_path, data_store_name):
     if (ext is not None and ext.lower() == '.n5' or data_store_name == 'n5'):
         return zarr.N5Store
     else:
-        return zarr.DirectoryStore
+        return zarr.NestedDirectoryStore
 
 
 def _get_data_store(data_path, data_subpath, data_store_ctor):

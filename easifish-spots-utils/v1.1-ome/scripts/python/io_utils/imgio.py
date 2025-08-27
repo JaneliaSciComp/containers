@@ -133,7 +133,7 @@ def _get_data_store(data_path, data_store_name):
     if data_store_name is None or data_store_name == 'n5':
         return zarr.N5Store(data_path)
     else:
-        return zarr.DirectoryStore(data_path)
+        return zarr.NestedDirectoryStore(data_path)
 
 
 def _adjust_data_paths(data_path, data_subpath, data_store_name):
