@@ -30,4 +30,5 @@ RUN mkdir -p /etc/cellpose/config
 COPY configs/* /etc/cellpose/config/
 COPY scripts/python /opt/scripts/cellpose
 
-RUN pip install --root-user-action ignore .
+RUN pip install --no-cache-dir --root-user-action ignore -e . \
+ && mamba clean --all -y

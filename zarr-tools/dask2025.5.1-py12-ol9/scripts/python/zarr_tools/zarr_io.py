@@ -7,8 +7,7 @@ from .ngff.ngff_utils import (get_dataset, get_datasets, get_multiscales, has_mu
 
 def open_zarr(data_path, data_subpath, data_store_name=None, mode='r'):
     try:
-        data_store_ctor = _get_data_store_ctor(data_path, data_store_name)
-        zarr_container, zarr_subpath = _get_data_store(data_path, data_subpath, data_store_ctor)
+        zarr_container, zarr_subpath = _get_data_store(data_path, data_subpath, data_store_name)
 
         print(f'Open zarr container: {zarr_container} ({zarr_subpath}), mode: {mode}')
         data_container = zarr.open(store=zarr_container, mode=mode)
@@ -25,26 +24,18 @@ def open_zarr(data_path, data_subpath, data_store_name=None, mode='r'):
         raise e
 
 
-def _get_data_store_ctor(data_path, data_store_name):
-    path_comps = os.path.splitext(data_path)
-    ext = path_comps[1]
-    
-    if (ext is not None and ext.lower() == '.n5' or data_store_name == 'n5'):
-        return zarr.N5Store
-    else:
-        return zarr.NestedDirectoryStore
-
-
-def _get_data_store(data_path, data_subpath, data_store_ctor):
+def _get_data_store(data_path, data_subpath, data_store_name):
     """
     This methods adjusts the container and dataset paths such that
     the container paths always contains a .attrs file
     """
-    if data_store_ctor is zarr.N5Store:
+    path_comps = os.path.splitext(data_path)
+    ext = path_comps[1]
+    if (ext is not None and ext.lower() == '.n5' or data_store_name == 'n5'):
         # N5 container path is the same as the data_path
         # and the subpath is the dataset path
         print(f'Create N5 store for {data_path}: {data_subpath}')
-        return data_store_ctor(data_path), data_subpath
+        return zarr.N5Store(data_path), data_subpath
 
     print(f'Create ZARR store for {data_path}: { data_subpath}')
     dataset_path_arg = data_subpath if data_subpath is not None else ''
@@ -67,7 +58,7 @@ def _get_data_store(data_path, data_subpath, data_store_ctor):
     new_subpath = '/'.join(dataset_comps[dataset_comps_index:])
 
     print(f'Found zarr container at {container_path}:{new_subpath}')
-    return data_store_ctor(container_path), new_subpath
+    return zarr.DirectoryStore(container_path, dimension_separator='/'), new_subpath
 
 
 def _lookup_ome_multiscales(data_container, data_subpath):

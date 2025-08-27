@@ -32,4 +32,4 @@ RUN mkdir -p /etc/cellpose/config
 COPY configs/* /etc/cellpose/config/
 COPY scripts/python /opt/scripts/cellpose
 
-RUN pip install .
+RUN pip install --root-user-action ignore .
