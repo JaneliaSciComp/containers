@@ -4,7 +4,7 @@ import os
 import re
 import zarr
 
-from ome_zarr_models.v04.image import (Dataset, Multiscale)
+from ome_zarr_models.v04.image import (Dataset)
 
 
 logger = logging.getLogger(__name__)
