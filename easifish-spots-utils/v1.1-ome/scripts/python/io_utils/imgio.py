@@ -3,7 +3,6 @@ import zarr
 import numpy as np
 import re
 
-from ome_zarr_models.v04.image import ImageAttrs
 from tifffile import TiffFile
 
 

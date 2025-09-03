@@ -40,6 +40,12 @@ def _define_args():
                              default=0.,
                              help='Sample expansion factor')
 
+    args_parser.add_argument('--ignore-voxel-spacing',
+                             dest='ignore_voxel_spacing',
+                             action='store_true',
+                             default=False,
+                             help='Do not apply voxel spacing')
+
     return args_parser
 
 
@@ -65,7 +71,8 @@ def _post_process_rsfish_csv_results(args):
     print(f"Image voxel spacing: {voxel_spacing}")
 
     rsfish_spots = np.loadtxt(args.input, delimiter=',', skiprows=1)
-    rsfish_spots[:, :3] = rsfish_spots[:, :3] * voxel_spacing
+    if not args.ignore_voxel_spacing:
+        rsfish_spots[:, :3] = rsfish_spots[:, :3] * voxel_spacing
 
     # extract unique channels
     rsfish_channels = np.unique(rsfish_spots[:, 4]).astype(int)
