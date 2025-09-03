@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fishspots"
+version = "0.5.0"
+description = "Tools for distributed alignment of massive images"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+    { name = "Greg M. Fleishman", email = "greg.nli10me@gmail.com" }
+]
+dependencies = [
+    "dask>=2025.5.1",
+    "distributed>=2025.5.1",
+    "numpy>=1.26,<2",
+    "ome-zarr-models==0.1.6",
+    "SimpleITK==2.5.2",
+    "scipy",
+    "scikit-image",
+    "tifffile>=2022.10.10",
+    "zarr>=2.18.7,<3",
+]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/GFleishman/fishspot/issues"
+
+[tool.setuptools.packages.find]
+include = [ "io_utils*", "distributed_tools*" ]
