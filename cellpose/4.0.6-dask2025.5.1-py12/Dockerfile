@@ -1,7 +1,7 @@
 FROM ghcr.io/janeliascicomp/zarr-tools:dask2025.5.1-py12-ol9
 
 LABEL software="cellpose"
-LABEL version="3"
+LABEL version="4"
 LABEL base_image="janeliascicomp/dask:2025.5.2-py12-ol9"
 LABEL software.version="4.0.4-dask2025.5.1-py12"
 LABEL about.summary="A generalist algorithm for cell and nucleus segmentation."
