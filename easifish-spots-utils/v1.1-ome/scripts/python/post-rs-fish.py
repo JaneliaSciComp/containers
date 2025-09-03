@@ -40,8 +40,6 @@ def _define_args():
                              default=0.,
                              help='Sample expansion factor')
 
-
-
     return args_parser
 
 
@@ -87,7 +85,9 @@ def _save_results_per_channel(rsfish_spots, res_file):
     rsfish_spots = np.delete(rsfish_spots, np.s_[3:5], axis=1)
 
     print(f'Saving {rsfish_spots.shape[0]} points in micron space to {res_file}')
-    np.savetxt(res_file, rsfish_spots, delimiter=',')
+    fmt = ['%.4f', '%.4f', '%.4f', '%.4f']
+
+    np.savetxt(res_file, rsfish_spots, delimiter=',', fmt=fmt)
 
 
 def _main():
