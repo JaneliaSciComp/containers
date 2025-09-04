@@ -71,6 +71,10 @@ def _post_process_rsfish_csv_results(args):
     print(f"Image voxel spacing: {voxel_spacing}")
 
     rsfish_spots = np.loadtxt(args.input, delimiter=',', skiprows=1)
+    if len(rsfish_spots) == 0:
+        print(f'No spots found in {args.input}')
+        return
+
     if not args.ignore_voxel_spacing:
         rsfish_spots[:, :3] = rsfish_spots[:, :3] * voxel_spacing
 
