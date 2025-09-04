@@ -17,6 +17,7 @@ def distributed_spot_detection(
     image_data,
     timeindex,
     channels,
+    excluded_channels,
     blocksize,
     dask_client,
     white_tophat_args={},
@@ -53,14 +54,19 @@ def distributed_spot_detection(
         spot_detection_args['exclude_border'] = overlap
 
     spatial_shape = image_data.shape[-3:]
+    nspatial_dims = len(spatial_shape)
 
+    # get the timeindexes to process
+    # a timeindex value of -1 means that the timeindex dimension is not present
     if timeindex is None:
-        spots_timepoints = tuple(range(image_data.shape[-5])) if len(image_data.shape) > 4 else (-1,)
+        spots_timepoints = tuple(range(image_data.shape[-nspatial_dims-2])) if len(image_data.shape) > nspatial_dims+1 else (-1,)
     else:
         spots_timepoints = (timeindex,)
 
+    # get the channels to process
+    # a channel value of -1 means that the channel dimension is not present
     if channels is None or channels == [] or channels == ():
-        spots_channels = tuple(range(image_data.shape[-4])) if len(image_data.shape) > 3 else (-1,)
+        spots_channels = tuple(range(image_data.shape[-nspatial_dims-1])) if len(image_data.shape) > nspatial_dims else (-1,)
     elif isinstance(channels, tuple) or isinstance(channels, list):
         spots_channels = channels
     elif isinstance(channels, int):
@@ -80,6 +86,10 @@ def distributed_spot_detection(
     indices, psfs = [], []
     for tp in spots_timepoints:
         for ch in spots_channels:
+
+            if ch in excluded_channels:
+                continue
+
             for (i, j, k) in product(*[range(x) for x in nblocks]):
                 start = np.array(blocksize) * (i, j, k) - overlap
                 stop = start + blocksize + 2 * overlap
@@ -166,7 +176,8 @@ def _detect_block_spots(block_with_coords, psf,
     else:
         timeindex = 1
     
-    print(f'Detect spots for a {coords} block of size {block.shape}')
+    print(f'Detect spots for a {coords} block of size {block.shape}',
+          flush=True)
     # load data, background subtract, deconvolve, detect blobs
     wth = fs_filter.white_tophat(block, **white_tophat_args)
     if psf is None:
@@ -182,10 +193,10 @@ def _detect_block_spots(block_with_coords, psf,
             else:
                 break
     if psf is not None:
-        print(f'PSF found for {coords} block')
+        print(f'PSF found for {coords} block', flush=True)
         decon = fs_filter.rl_decon(wth, psf, **deconvolution_args)
     else:
-        print(f'No PSF could be estimated for {block.shape} block at {coords}')
+        print(f'No PSF could be estimated for {block.shape} block at {coords}', flush=True)
         decon = wth
     spots = fs_detect.detect_spots_log(decon, **spot_detection_args)
 

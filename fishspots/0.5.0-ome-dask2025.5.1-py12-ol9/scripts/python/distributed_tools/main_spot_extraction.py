@@ -43,7 +43,14 @@ def _define_args():
                              type=int,
                              default=None,
                              help='Time index to process (if applicable)')
-    args_parser.add_argument('--channels',
+    args_parser.add_argument('--channels', '--included-channels',
+                             dest='channels',
+                             type=int,
+                             nargs='+',
+                             default=[],
+                             help='List of channel indices to process')
+    args_parser.add_argument('--excluded-channels',
+                             dest='excluded_channels',
                              type=int,
                              nargs='+',
                              default=[],
@@ -149,6 +156,7 @@ def _main():
         image_data,
         args.timeindex,
         args.channels,
+        set(args.excluded_channels) if args.excluded_channels else set(),
         processing_blocksize,
         cluster_client,
         white_tophat_args=white_tophat_args,
