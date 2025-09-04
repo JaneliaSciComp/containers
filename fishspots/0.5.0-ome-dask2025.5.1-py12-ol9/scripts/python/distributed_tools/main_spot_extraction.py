@@ -111,7 +111,7 @@ def _write_spots(spots, csvfilename):
     header = 'x,y,z,t,c,intensity'
     fmt = ['%.4f', '%.4f', '%.4f', '%d', '%d', '%.4f']
 
-    print(f'Write spots to {csvfilename}')
+    print(f'Write {len(spots)} spots to {csvfilename}')
     output_path = Path(csvfilename)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savetxt(csvfilename, spots, delimiter=',', header=header, fmt=fmt)

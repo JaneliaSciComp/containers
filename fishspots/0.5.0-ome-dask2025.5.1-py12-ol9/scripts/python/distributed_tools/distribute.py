@@ -132,7 +132,6 @@ def distributed_spot_detection(
     # reformat to single array of spots and single psf
     spots, psfs = [], []
     for x, y in spots_and_psfs:
-        print(f'Append {len(x)} spots')
         spots.append(x)
         if y is not None:
             psfs.append(y)
@@ -220,7 +219,7 @@ def _detect_block_spots(block_with_coords, psf,
         # adjust for block origin
         origin = np.array([x.start for x in coords[-3:]])
         spots[:, :3] = spots[:, :3] + origin
-        print(f'Found: {spots.shape} spots')
+        print(f'Block at {coords} -> found: {spots.shape} spots')
         return spots, psf
 
 
