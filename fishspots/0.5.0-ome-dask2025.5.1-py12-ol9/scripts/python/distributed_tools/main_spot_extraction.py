@@ -91,16 +91,28 @@ def _define_args():
                              dest='fishspots_config',
                              type=str,
                              help='Fishspots config yaml file')
+    args_parser.add_argument('--psf-file', '--psf_file',
+                             dest='psf_file',
+                             type=str,
+                             help='numpy file that contains the PSF')
     args_parser.add_argument('--psf-retries', '--psf_retries',
                              dest='psf_retries',
                              type=int,
                              default=3,
                              help='PSF retries')
+    args_parser.add_argument('--gaussian-sigma',
+                             dest='gaussian_sigma',
+                             type=float,
+                             help='Gaussian sigma')
     args_parser.add_argument('--intensity-threshold', '--intensity_threshold',
                              dest='intensity_threshold',
                              type=int,
-                             default=0,
                              help='Intensity threshold for spot detection')
+    args_parser.add_argument('--intensity-threshold-minimum',
+                             dest='intensity_threshold_minimum',
+                             type=int,
+                             default=0,
+                             help='Intensity threshold minimum for spot detection')
     return args_parser
 
 
@@ -152,6 +164,12 @@ def _main():
     deconvolution_args=fishspots_config.get('deconvolution_args', {})
     spot_detection_args=fishspots_config.get('spot_detection_args', {})
 
+    psf_file = Path(args.psf_file) if args.psf_file else None
+    if psf_file is not None and psf_file.exists() and psf_file.is_file():
+        psf = np.load(psf_file)
+    else:
+        psf = None
+
     spots, _ = distributed_spot_detection(
         image_data,
         args.timeindex,
@@ -163,7 +181,10 @@ def _main():
         psf_estimation_args=psf_estimation_args,
         deconvolution_args=deconvolution_args,
         spot_detection_args=spot_detection_args,
+        gaussian_sigma=args.gaussian_sigma,
         intensity_threshold=args.intensity_threshold,
+        intensity_threshold_minimum=args.intensity_threshold_minimum,
+        psf=psf,
         psf_retries=args.psf_retries,
     )
 

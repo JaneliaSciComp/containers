@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "fishspots"
 version = "0.5.0"
 description = "Tools for distributed alignment of massive images"
-license = "MIT"
+license = "BSD-3-Clause"
 requires-python = ">=3.12"
 authors = [
     { name = "Greg M. Fleishman", email = "greg.nli10me@gmail.com" }
