@@ -11,16 +11,16 @@
 #
 # To build:
 #   cd ${RENDER_REPO_ROOT_DIR}
-#   docker build --file render-ws-with-mongo-db/Dockerfile --no-cache --tag ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5 .
+#   docker build --file render-ws-with-mongo-db/Dockerfile --no-cache --tag ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.8 .
 #
 # To run a container in detached mode:
-#   docker run --publish 8080:8080 --detach --rm ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5
+#   docker run --publish 8080:8080 --detach --rm ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.8
 #
 # To run a container in detached mode with the standard MongoDB dump directory mounted:
-#   docker run --publish 8080:8080 --detach --rm --mount type=bind,source=/mnt/disks/mongodb_dump_fs/dump,target=/mnt/disks/mongodb_dump_fs/dump ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5
+#   docker run --publish 8080:8080 --detach --rm --mount type=bind,source=/mnt/disks/mongodb_dump_fs/dump,target=/mnt/disks/mongodb_dump_fs/dump ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.8
 #
 # To launch an interactive bash shell within a new container:
-#   docker run --interactive --tty --publish 8080:8080 --entrypoint /bin/bash --rm ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5
+#   docker run --interactive --tty --publish 8080:8080 --entrypoint /bin/bash --rm ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.8
 #
 # To launch an interactive bash shell within an already running container:
 #   docker ps -a     # to get the container id
@@ -30,7 +30,7 @@
 #   docker exec --interactive --tty "$(docker ps -q)" /bin/bash
 #
 # To push the image to the janeliascicomp containers GitHub registry (see https://github.com/JaneliaSciComp/containers/tree/main):
-#   docker push ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.5
+#   docker push ghcr.io/janeliascicomp/render-ws-with-mongodb:0.0.8
 #
 # Published Containers Notes:
 #   - Before pushing, your docker instance needs to be logged in to GitHub.
@@ -44,10 +44,10 @@
 FROM ubuntu:22.04
 LABEL maintainer="Eric Trautman <trautmane@janelia.hhmi.org>"
 
-# 1: Install Git, Maven, curl, vim
+# 1: Install Git, Maven, curl, vim, jq
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y git maven curl vim
+    apt-get install -y git maven curl vim jq
 
 # 2. Clone the Repository
 WORKDIR /var/www/
@@ -61,7 +61,9 @@ RUN git checkout newsolver
 
 RUN ./render-ws/src/main/scripts/install.sh && \
     cp ./render-ws-with-mongo-db/*.sh . && \
-    chmod 755 *.sh
+    chmod 755 *.sh && \
+    cp -r ./render-ws-with-mongo-db/other . && \
+    chmod 755 other/*.sh
 
 # 4. Build only the render-app and render-ws modules and skip tests
 RUN { echo 'JAVA_HOME="$(readlink -m ./deploy/*jdk*)"'; } >> ~/.mavenrc  && \
