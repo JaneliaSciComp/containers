@@ -234,7 +234,7 @@ def _detect_block_spots(block_with_coords, psf,
     else:
         # remove spots found in the overlap region
         core_origin = [x.start-y.start for x, y in zip(core_coords[-3:], overlap_coords[-3:])]
-        span = [x.stop-x.start for x in core_coords]
+        span = [x.stop-x.start for x in core_coords[-3:]]
         spots = fs_filter.filter_by_range(spots, core_origin, span)
         print(f'Spots array shape after overlap removal: {spots.shape}', flush=True)
 
