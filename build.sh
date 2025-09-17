@@ -55,10 +55,6 @@ else
     echo "Build container for ${platform_arg}"
 fi
 
-if [[ -z "${platform_arg}" ]]; then
-    args+=("--load")
-fi
-
 if [[ -z "${push_container_arg}" ]]; then
     args+=("--push")
 fi
