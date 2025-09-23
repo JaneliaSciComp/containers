@@ -5,7 +5,7 @@ import zarr
 
 from dask.array.core import normalize_chunks, slices_from_chunks
 from dask.distributed import Client
-from .ngff.ngff_utils import (get_dataset_transformations, get_first_space_axis,
+from .ngff.ngff_utils import (get_transformations_from_datasetpath, get_first_space_axis,
                               get_multiscales, add_new_dataset)
 from xarray_multiscale import windowed_mean, windowed_mode
 
@@ -24,7 +24,7 @@ def create_multiscale(multiscale_group: zarr.Group,
 
     source_dataset_shape = group_attrs.get('dataset_shape', [])
     source_dataset_level = int(dataset_regex.match(dataset_path).group(1))
-    source_dataset_scale, source_dataset_translation = get_dataset_transformations(
+    source_dataset_scale, source_dataset_translation = get_transformations_from_datasetpath(
         pyramid_attrs, dataset_path,
         default_scale=(1,) * len(source_dataset_shape),
         default_translation=(0,) * len(source_dataset_shape),

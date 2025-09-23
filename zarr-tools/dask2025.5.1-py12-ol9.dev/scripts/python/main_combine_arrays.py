@@ -3,6 +3,7 @@ import argparse
 from dask.distributed import (Client, LocalCluster)
 from dataclasses import dataclass
 
+from zarr_tools.ngff.ngff_utils import get_voxel_spacing
 from zarr_tools.combine_arrays import combine_arrays
 from zarr_tools.dask_tools import (load_dask_config, ConfigureWorkerPlugin)
 from zarr_tools.zarr_io import (open_zarr,create_zarr_array)
@@ -128,12 +129,19 @@ def _run_combine_arrays(args):
     max_tp = None
     errors_found = []
     output_type = args.output_type
+    voxel_spacing = None
     for ap in args.array_params:
         array_container = ap.sourcePath if ap.sourcePath else args.input
         zgroup, zattrs, zsubpath = open_zarr(array_container, ap.sourceSubpath, mode='r')
         zarray = zgroup[zsubpath]
-        print(f'!!!!!! {ap.sourceSubpath}: {zsubpath} {zarray.shape}')
 
+        current_voxel_spacing = get_voxel_spacing(zattrs)
+        if voxel_spacing is None:
+            voxel_spacing = current_voxel_spacing
+        elif voxel_spacing != current_voxel_spacing:
+            print(f'Voxel spacing for {current_voxel_spacing} differs from the first found: {voxel_spacing}')
+
+        print('!!!!!!!! VOXEL SPACING ', current_voxel_spacing)
         if not output_type:
             output_type = zarray.dtype
 
@@ -172,9 +180,11 @@ def _run_combine_arrays(args):
             output_shape,
             output_chunks,
             output_type,
+            compressor=args.compressor,
             overwrite=args.overwrite,
         )
         combine_arrays(input_zarrays, output_zarray, dask_client)
+        print('DONE!')
 
     dask_client.close()
 

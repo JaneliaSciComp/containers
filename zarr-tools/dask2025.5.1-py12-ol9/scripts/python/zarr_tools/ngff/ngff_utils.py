@@ -61,7 +61,7 @@ def get_dataset(multiscale_attrs, dataset_path):
         return None
 
 
-def get_dataset_transformations(multiscale_attrs, dataset_path, default_scale=None, default_translation=None):
+def get_transformations_from_datasetpath(multiscale_attrs, dataset_path, default_scale=None, default_translation=None):
     """
     Get the scale and translation transformations from the multiscale attributes for the dataset with the given path.
     """

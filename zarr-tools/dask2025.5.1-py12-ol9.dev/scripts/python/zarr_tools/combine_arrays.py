@@ -1,13 +1,13 @@
-import functools
-import numpy as np
-import re
+import logging
+import traceback
 import zarr
 
 from dask.array.core import slices_from_chunks, normalize_chunks
-from dask.distributed import Client
+from dask.distributed import Client, as_completed
 from typing import List, Tuple
 
 
+logger = logging.getLogger(__name__)
 
 
 def combine_arrays(input_zarrays: List[Tuple[zarr.Array, int, int]],
@@ -20,16 +20,23 @@ def combine_arrays(input_zarrays: List[Tuple[zarr.Array, int, int]],
     input_blocks = client.map(_read_input_blocks, block_slices, source_arrays=input_zarrays)
     res = client.map(_write_blocks, input_blocks, output=output_zarray)
 
-    client.gather(res)
-    print('!!!!! DONE')
+    for f, r in as_completed(res, with_results=True):
+        if f.cancelled():
+            exc = f.exception()
+            logger.error(f'Block exception: {exc}')
+            tb = f.traceback()
+            traceback.print_tb(tb)
+            res = False
+        else:
+            logger.info(f'Finished writing blocks {r}')
 
 
 def _read_input_blocks(coords, source_arrays=[]):
-    print('!!!!! COORDS: ', coords)
     return [(coords, ch, tp, arr[coords[-3:]]) for (arr, ch, tp) in source_arrays]
 
 
 def _write_blocks(blocks, output=[]):
+    written_blocks = []
     for (coords, ch, tp, block) in blocks:
         if tp is not None:
             block_coords = (tp, ch) + coords[-3:]
@@ -37,5 +44,6 @@ def _write_blocks(blocks, output=[]):
             block_coords = (ch,) + coords[-3:]
         # write the block
         output[block_coords] = block
+        written_blocks.append(block_coords)
 
-    return 1
+    return written_blocks

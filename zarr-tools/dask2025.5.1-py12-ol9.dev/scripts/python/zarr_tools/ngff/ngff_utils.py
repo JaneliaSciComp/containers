@@ -1,4 +1,10 @@
+import logging
+import numpy as np
+
 from ome_zarr_models.v04.image import (Dataset)
+
+
+logger = logging.getLogger(__name__)
 
 
 def add_new_dataset(multiscales_attrs, dataset_path, scale_transform, translation_transform):
@@ -41,6 +47,14 @@ def get_first_space_axis(multiscales_attrs, dataset_dims=-1, spatial_dims=3):
     return dataset_dims - spatial_dims if dataset_dims > spatial_dims else 0
 
 
+def get_dataset_at(multiscale_attrs, dataset_index):
+    datasets = multiscale_attrs.get('datasets', [])
+    if dataset_index < len(datasets):
+        return datasets[dataset_index]
+    else:
+        return None
+
+
 def get_dataset(multiscale_attrs, dataset_path):
     datasets = multiscale_attrs.get('datasets', [])
     dataset_path_comps = [c for c in dataset_path.split('/') if c]
@@ -61,7 +75,24 @@ def get_dataset(multiscale_attrs, dataset_path):
         return None
 
 
-def get_dataset_transformations(multiscale_attrs, dataset_path, default_scale=None, default_translation=None):
+def get_dataset_transformations(dataset, default_scale=None, default_translation=None):
+    """
+    Get the scale and translation transformations from the multiscale attributes for the given dataset.
+    """
+
+    scale, translation = default_scale, default_translation
+    coord_transformations = (dataset.get('coordinateTransformations', [])
+                             if dataset is not None else [])
+    for t in coord_transformations:
+        if t['type'] == 'scale':
+            scale = t['scale']
+        elif t['type'] == 'translation':
+            translation = t['translation']
+
+    return scale, translation
+
+
+def get_transformations_from_datasetpath(multiscale_attrs, dataset_path, default_scale=None, default_translation=None):
     """
     Get the scale and translation transformations from the multiscale attributes for the dataset with the given path.
     """
@@ -77,6 +108,8 @@ def get_dataset_transformations(multiscale_attrs, dataset_path, default_scale=No
             translation = t['translation']
 
     return scale, translation
+
+
 
 
 def get_datasets(multiscale_attrs):
@@ -95,3 +128,31 @@ def has_multiscales(attrs):
     Get the multiscales attributes.
     """
     return 'multiscales' in attrs
+
+
+def get_voxel_spacing(attrs):
+    dataset = get_dataset_at(get_multiscales(attrs), 0)
+    pr = None
+    if dataset is not None and dataset.get('coordinateTransformations'):
+        scale, _ = get_dataset_transformations(dataset, default_scale=[])
+        if len(scale) > 0:
+            pr = scale[-3:]
+        else:
+            pr = None
+    elif (attrs.get('downsamplingFactors')):
+        # N5 at scale > S0
+        pr = (np.array(attrs['pixelResolution']) * 
+              np.array(attrs['downsamplingFactors']))
+        pr = pr[::-1]  # zyx order
+    elif attrs.get('pixelResolution'):
+        # N5 at scale S0
+        pr_attr = attrs.get('pixelResolution')
+        if type(pr_attr) is list:
+            pr = np.array(pr_attr)
+            pr = pr[::-1]  # zyx order
+        elif type(pr_attr) is dict:
+            if pr_attr.get('dimensions'):
+                pr = np.array(pr_attr['dimensions'])
+                pr = pr[::-1]  # zyx order
+    logger.debug(f'Voxel spacing from attributes: {pr}')
+    return pr
