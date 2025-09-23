@@ -189,6 +189,31 @@ def _run_combine_arrays(args):
     dask_client.close()
 
 
+def _create_ome_metadata(dataset_path, voxel_spacing, final_ndims):
+    scale = ([1] if final_ndims == 4 else [1, 1]) + voxel_spacing
+    translation = [0] * final_ndims
+    dataset_meta = {
+        'path': dataset_path,
+        'coordinateTransformations': [
+            {
+                'type': 'scale',
+                'scale': scale,
+            },
+            {
+                'type': 'translation',
+                'translation' : translation
+            }
+        ]
+    }
+    multiscales = {
+        'multiscales': [
+            {
+            }
+        ]
+    }
+
+    return multiscales
+
 
 if __name__ == '__main__':
     args_parser = _define_args()
