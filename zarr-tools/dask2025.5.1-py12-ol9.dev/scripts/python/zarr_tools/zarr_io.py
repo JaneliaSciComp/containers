@@ -11,13 +11,14 @@ from typing import Tuple
 logger = logging.getLogger(__name__)
 
 
-def create_zarray(container_path:str, data_subpath:str,
-                  shape:Tuple[int],
-                  chunks:Tuple[int],
-                  dtype:str,
-                  store_name:str|None=None,
-                  compressor:str|None=None,
-                  overwrite=False):
+def create_zarr_array(container_path:str,
+                      data_subpath:str,
+                      shape:Tuple[int],
+                      chunks:Tuple[int],
+                      dtype:str,
+                      store_name:str|None=None,
+                      compressor:str|None=None,
+                      overwrite=False):
 
     real_container_path = os.path.realpath(container_path)
     if store_name == 'n5':
@@ -59,12 +60,11 @@ def create_zarray(container_path:str, data_subpath:str,
                 overwrite=True,
                 compressor=codec,
             )
-            _resize_zarray(current_shape, shape)
+            _resize_zarr_array(zarray, shape)
+            return zarray
     else:
         print('This is not supported yet')
-
-
-    ...
+        return None
 
 
 def open_zarr(data_path:str, data_subpath:str, data_store_name:str|None=None, mode:str='r'):
@@ -221,7 +221,7 @@ def _set_array_attrs(attrs, subpath, shape, dtype, chunks):
     return attrs
 
 
-def _resize_zarray(zarray, new_shape):
+def _resize_zarr_array(zarray, new_shape):
     """
     Resize the array to fit the new shape
     """

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from zarr_tools.combine_arrays import combine_arrays
 from zarr_tools.dask_tools import (load_dask_config, ConfigureWorkerPlugin)
-from zarr_tools.zarr_io import open_zarr
+from zarr_tools.zarr_io import (open_zarr,create_zarr_array)
 
 
 @dataclass(frozen=True)
@@ -71,6 +71,10 @@ def _define_args():
                             type=str,
                             dest='output_type',
                             help='Output type')
+    input_args.add_argument('--overwrite',
+                            dest='overwrite',
+                            action='store_true',
+                            help='Overwrite container if it exists')
 
     input_args.add_argument('--compressor',
                             default='zstd',
@@ -118,7 +122,7 @@ def _run_combine_arrays(args):
     worker_config = ConfigureWorkerPlugin(worker_cpus=args.worker_cpus)
     dask_client.register_plugin(worker_config, name='WorkerConfig')
 
-    input_zarrays = {}
+    input_zarrays = []
     spatial_shape = ()
     max_ch = 0
     max_tp = None
@@ -140,11 +144,14 @@ def _run_combine_arrays(args):
                 errors_found.append(f'All zarr arrays must have the same spatial dimensions: {spatial_shape} - {array_container}:{ap.sourceSubpath} has shape {zarray.shape}')
         if ap.targetCh > max_ch:
             max_ch = ap.targetCh
+
         if ap.targetTp is not None:
             if max_tp is None:
                 max_tp = ap.targetTp
             elif ap.targetTp > max_tp:
                 max_tp = ap.targetTp
+        
+        input_zarrays.append((zarray, ap.targetCh, ap.targetTp))
 
     xyz_output_chunks = args.output_chunks if args.output_chunks else (128,) * 3
 
@@ -159,8 +166,15 @@ def _run_combine_arrays(args):
         print(f'Errors found: {errors_found}')
     else:
         print(f'Create output {args.output}:{args.output_subpath}:{output_shape}:{output_chunks}:{output_type}')
-        
-        combine_arrays(input_zarrays, dask_client)
+        output_zarray = create_zarr_array(
+            args.output,
+            args.output_subpath,
+            output_shape,
+            output_chunks,
+            output_type,
+            overwrite=args.overwrite,
+        )
+        combine_arrays(input_zarrays, output_zarray, dask_client)
 
     dask_client.close()
 
