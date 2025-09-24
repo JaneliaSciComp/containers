@@ -162,7 +162,7 @@ def _run_combine_arrays(args):
         if voxel_spacing is None:
             voxel_spacing = current_voxel_spacing
         elif voxel_spacing != current_voxel_spacing:
-            print(f'Voxel spacing for {current_voxel_spacing} differs from the first found: {voxel_spacing}')
+            logger.warning(f'Voxel spacing for {current_voxel_spacing} differs from the first found: {voxel_spacing}')
 
         if axes is None:
             axes = get_axes(get_multiscales(zattrs))
@@ -196,7 +196,7 @@ def _run_combine_arrays(args):
         output_chunks = (1,) + xyz_output_chunks[::-1]
 
     if len(errors_found) > 0:
-        print(f'Errors found: {errors_found}')
+        logger.error(f'Errors found: {errors_found}')
     else:
         if voxel_spacing is None:
             voxel_spacing = list(args.voxel_spacing[::-1])
@@ -205,7 +205,7 @@ def _run_combine_arrays(args):
                                             axes,
                                             voxel_spacing, 
                                             (4 if max_tp is None else 5))
-        print((
+        logger.info((
             f'Create output {args.output}:{args.output_subpath}:{output_shape}:{output_chunks}:{output_type} '
             f'OME metadata: {ome_metadata}'
         ))
@@ -221,7 +221,7 @@ def _run_combine_arrays(args):
         )
         combine_arrays(input_zarrays, output_zarray, dask_client,
                        partition_size=args.partition_size)
-        print('DONE!')
+        logger.info('DONE!')
 
     dask_client.close()
 
@@ -296,7 +296,7 @@ def main():
     logger = configure_logging(args.logging_config)
 
     # run multi-scale segmentation
-    print(f'Combine arrays: {args}')
+    logger.info(f'Combine arrays: {args}')
     _run_combine_arrays(args)
 
 
