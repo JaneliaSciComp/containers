@@ -108,6 +108,7 @@ def _define_args():
                                   help='Number of cpus allocated to a dask worker')
     distributed_args.add_argument('--partition-size',
                                   dest='partition_size',
+                                  type=int,
                                   default=100000,
                                   help='Processing partition size')
 
