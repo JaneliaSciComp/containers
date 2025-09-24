@@ -2,10 +2,13 @@ import argparse
 
 from dask.distributed import (Client, LocalCluster)
 
-from zarr_tools.zarr_io import open_zarr
-from zarr_tools.multiscale import create_multiscale
+from zarr_tools.configure_logging import configure_logging
 from zarr_tools.dask_tools import (load_dask_config, ConfigureWorkerPlugin)
+from zarr_tools.multiscale import create_multiscale
+from zarr_tools.zarr_io import open_zarr
 
+
+logger = None
 
 
 def _define_args():
@@ -29,6 +32,11 @@ def _define_args():
                              type=str,
                              default='raw',
                              help = "data type (e.g. segmentation, raw)")
+
+    input_args.add_argument('--logging-config',
+                            dest='logging_config',
+                            type=str,
+                            help='Logging configuration')
 
     distributed_args = args_parser.add_argument_group("Distributed Arguments")
     distributed_args.add_argument('--dask-scheduler', '--dask_scheduler',
@@ -61,7 +69,8 @@ def _run_multiscale(args):
         dask_client = Client(LocalCluster(n_workers=args.local_dask_workers,
                                           threads_per_worker=args.worker_cpus))
 
-    worker_config = ConfigureWorkerPlugin(worker_cpus=args.worker_cpus)
+    worker_config = ConfigureWorkerPlugin(args.logging_config,
+                                          worker_cpus=args.worker_cpus)
     dask_client.register_plugin(worker_config, name='WorkerConfig')
 
     dataset_container, dataset_attrs, dataset_path = open_zarr(
@@ -75,10 +84,17 @@ def _run_multiscale(args):
 
 
 
-if __name__ == '__main__':
+def main():
     args_parser = _define_args()
     args = args_parser.parse_args()
+    # prepare logging
+    global logger
+    logger = configure_logging(args.logging_config)
 
     # run multi-scale segmentation
     print(f'Run multiscale: {args}')
     _run_multiscale(args)
+
+
+if __name__ == '__main__':
+    main()
