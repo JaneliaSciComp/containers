@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def combine_arrays(input_zarrays: List[Tuple[zarr.Array, int, int]],
                    output_zarray:zarr.Array,
                    client: Client,
-                   partiton_size=100000):
+                   partition_size=100000):
     """
     Combine arrays
     """

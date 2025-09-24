@@ -200,7 +200,7 @@ def _run_combine_arrays(args):
             parent_array_attrs=ome_metadata
         )
         combine_arrays(input_zarrays, output_zarray, dask_client,
-                       partiton_size=args.partition_size)
+                       partition_size=args.partition_size)
         print('DONE!')
 
     dask_client.close()
