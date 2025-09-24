@@ -118,7 +118,9 @@ def _run_combine_arrays(args):
     else:
         # use a local asynchronous client
         dask_client = Client(LocalCluster(n_workers=args.local_dask_workers,
-                                          threads_per_worker=args.worker_cpus))
+                                          threads_per_worker=args.worker_cpus,
+                                          nanny=False,
+                                          processes=True))
 
     worker_config = ConfigureWorkerPlugin(worker_cpus=args.worker_cpus)
     dask_client.register_plugin(worker_config, name='WorkerConfig')
