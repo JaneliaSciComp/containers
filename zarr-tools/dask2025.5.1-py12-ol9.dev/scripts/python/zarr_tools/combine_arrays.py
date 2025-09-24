@@ -4,6 +4,7 @@ import zarr
 
 from dask.array.core import slices_from_chunks, normalize_chunks
 from dask.distributed import Client, as_completed
+from toolz import partition_all
 from typing import List, Tuple
 
 
@@ -12,23 +13,28 @@ logger = logging.getLogger(__name__)
 
 def combine_arrays(input_zarrays: List[Tuple[zarr.Array, int, int]],
                    output_zarray:zarr.Array,
-                   client: Client):
+                   client: Client,
+                   partiton_size=100000):
     """
     Combine arrays
     """
     block_slices = slices_from_chunks(normalize_chunks(output_zarray.chunks, shape=output_zarray.shape))
-    input_blocks = client.map(_read_input_blocks, block_slices, source_arrays=input_zarrays)
-    res = client.map(_write_blocks, input_blocks, output=output_zarray)
+    partitioned_block_slices = tuple(partition_all(partition_size, block_slices))
 
-    for f, r in as_completed(res, with_results=True):
-        if f.cancelled():
-            exc = f.exception()
-            logger.error(f'Block exception: {exc}')
-            tb = f.traceback()
-            traceback.print_tb(tb)
-            res = False
-        else:
-            logger.info(f'Finished writing blocks {r}')
+    for idx, part in enumerate(partitioned_block_slices):
+        print(f'Process partition {idx}')
+        input_blocks = client.map(_read_input_blocks, part, source_arrays=input_zarrays)
+        res = client.map(_write_blocks, input_blocks, output=output_zarray)
+
+        for f, r in as_completed(res, with_results=True):
+            if f.cancelled():
+                exc = f.exception()
+                logger.error(f'Block exception: {exc}')
+                tb = f.traceback()
+                traceback.print_tb(tb)
+                res = False
+            else:
+                print(f'Finished writing blocks {r}')
 
 
 def _read_input_blocks(coords, source_arrays=[]):

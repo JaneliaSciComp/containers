@@ -106,6 +106,10 @@ def _define_args():
                                   dest='worker_cpus',
                                   type=int,
                                   help='Number of cpus allocated to a dask worker')
+    distributed_args.add_argument('--partition-size',
+                                  dest='partition_size',
+                                  default=100000,
+                                  help='Processing partition size')
 
     return args_parser
 
@@ -119,8 +123,7 @@ def _run_combine_arrays(args):
         # use a local asynchronous client
         dask_client = Client(LocalCluster(n_workers=args.local_dask_workers,
                                           threads_per_worker=args.worker_cpus,
-                                          nanny=False,
-                                          processes=True))
+                                          nanny=False))
 
     worker_config = ConfigureWorkerPlugin(worker_cpus=args.worker_cpus)
     dask_client.register_plugin(worker_config, name='WorkerConfig')
@@ -196,7 +199,8 @@ def _run_combine_arrays(args):
             overwrite=args.overwrite,
             parent_array_attrs=ome_metadata
         )
-        combine_arrays(input_zarrays, output_zarray, dask_client)
+        combine_arrays(input_zarrays, output_zarray, dask_client,
+                       partiton_size=args.partition_size)
         print('DONE!')
 
     dask_client.close()
