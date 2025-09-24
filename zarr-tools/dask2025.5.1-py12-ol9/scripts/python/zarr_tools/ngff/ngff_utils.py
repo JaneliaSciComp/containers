@@ -28,11 +28,15 @@ def add_new_dataset(multiscales_attrs, dataset_path, scale_transform, translatio
     return multiscales_attrs
 
 
+def get_axes(multiscales_attrs):
+    return multiscales_attrs.get('axes', None)
+
+
 def get_first_space_axis(multiscales_attrs, dataset_dims=-1, spatial_dims=3):
     """
     Get the first space axis index from the multiscale attributes.
     """
-    axes = multiscales_attrs.get('axes', None)
+    axes = get_axes(multiscales_attrs)
     if axes is not None:
         for i, axis in enumerate(axes):
             if axis.get('type') == 'space' or axis.get('name', '').lower() in ['z', 'y', 'x']:

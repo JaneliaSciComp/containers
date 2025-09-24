@@ -12,13 +12,15 @@ logger = logging.getLogger(__name__)
 
 
 def create_zarr_array(container_path:str,
-                      data_subpath:str,
+                      array_subpath:str,
                       shape:Tuple[int],
                       chunks:Tuple[int],
                       dtype:str,
                       store_name:str|None=None,
                       compressor:str|None=None,
-                      overwrite=False):
+                      overwrite=False,
+                      parent_array_attrs={},
+                      **array_attrs):
 
     real_container_path = os.path.realpath(container_path)
     if store_name == 'n5':
@@ -29,12 +31,12 @@ def create_zarr_array(container_path:str,
     codec = (None if compressor is None
              else codecs.get_codec(dict(id=compressor)))
 
-    if data_subpath:
+    if array_subpath:
         root_group = zarr.open_group(store=store, mode='a')
         if overwrite:
             current_shape = shape
             zarray = root_group.create_dataset(
-                data_subpath,
+                array_subpath,
                 shape = current_shape,
                 chunks=chunks,
                 dtype=dtype,
@@ -42,18 +44,18 @@ def create_zarr_array(container_path:str,
                 compressor=codec,
             )
         else:
-            if data_subpath in root_group:
+            if array_subpath in root_group:
                 # if the dataset already exists, get its shape
-                current_shape = root_group[data_subpath].shape
+                current_shape = root_group[array_subpath].shape
                 logger.info((
-                    f'Dataset {container_path}:{data_subpath} '
+                    f'Dataset {container_path}:{array_subpath} '
                     f'already exists with shape {current_shape} '
                 ))
             else:
                 # this is a new dataset 
                 current_shape = shape
             zarray = root_group.require_dataset(
-                data_subpath,
+                array_subpath,
                 shape = current_shape, # use the current shape
                 chunks=chunks,
                 dtype=dtype,
@@ -61,6 +63,8 @@ def create_zarr_array(container_path:str,
                 compressor=codec,
             )
             _resize_zarr_array(zarray, shape)
+            _update_parent_attrs(root_group, array_subpath, parent_array_attrs)
+            zarray.attrs.update(array_attrs)
             return zarray
     else:
         print('This is not supported yet')
@@ -227,3 +231,15 @@ def _resize_zarr_array(zarray, new_shape):
     """
     if zarray.shape != new_shape:
         zarray.resize(new_shape)
+
+
+def _update_parent_attrs(root_group, array_subpath, parent_attrs):
+    if array_subpath:
+        # create the parent group if needed
+        parent_array_path = os.path.dirname(array_subpath)
+        parent_group = (root_group if not parent_array_path
+                        else root_group.require_group(parent_array_path))
+    else:
+        parent_group = root_group
+
+    parent_group.attrs.update(parent_attrs)
