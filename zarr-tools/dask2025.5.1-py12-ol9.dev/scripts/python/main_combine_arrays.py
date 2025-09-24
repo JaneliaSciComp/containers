@@ -5,8 +5,12 @@ from dataclasses import dataclass
 
 from zarr_tools.ngff.ngff_utils import (get_axes, get_multiscales, get_voxel_spacing)
 from zarr_tools.combine_arrays import combine_arrays
+from zarr_tools.configure_logging import configure_logging
 from zarr_tools.dask_tools import (load_dask_config, ConfigureWorkerPlugin)
 from zarr_tools.zarr_io import (open_zarr,create_zarr_array)
+
+
+logger = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +99,11 @@ def _define_args():
                             dest='array_params',
                             help='Input array argument')
 
+    input_args.add_argument('--logging-config',
+                            dest='logging_config',
+                            type=str,
+                            help='Logging configuration')
+
     distributed_args = args_parser.add_argument_group("Distributed Arguments")
     distributed_args.add_argument('--dask-scheduler', '--dask_scheduler',
                                   dest='dask_scheduler',
@@ -132,7 +141,8 @@ def _run_combine_arrays(args):
                                           threads_per_worker=args.worker_cpus,
                                           nanny=False))
 
-    worker_config = ConfigureWorkerPlugin(worker_cpus=args.worker_cpus)
+    worker_config = ConfigureWorkerPlugin(args.logging_config,
+                                          worker_cpus=args.worker_cpus)
     dask_client.register_plugin(worker_config, name='WorkerConfig')
 
     input_zarrays = []
@@ -278,10 +288,17 @@ def _create_ome_metadata(dataset_path, axes, voxel_spacing, final_ndims, default
     return multiscales
 
 
-if __name__ == '__main__':
+def main():
     args_parser = _define_args()
     args = args_parser.parse_args()
+    # prepare logging
+    global logger
+    logger = configure_logging(args.logging_config)
 
     # run multi-scale segmentation
     print(f'Combine arrays: {args}')
     _run_combine_arrays(args)
+
+
+if __name__ == '__main__':
+    main()

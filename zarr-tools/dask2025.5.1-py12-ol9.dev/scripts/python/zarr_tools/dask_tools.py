@@ -3,15 +3,18 @@ import yaml
 
 from dask.distributed import Worker
 from distributed.diagnostics.plugin import WorkerPlugin
-
 from flatten_json import flatten
+
+from .configure_logging import configure_logging
 
 
 class ConfigureWorkerPlugin(WorkerPlugin):
-    def __init__(self, worker_cpus=0):
+    def __init__(self, logging_config, worker_cpus=0):
+        self.logging_config = logging_config
         self.worker_cpus = worker_cpus
 
     def setup(self, worker: Worker):
+        self.logger = configure_logging(self.logging_config)
         _set_cpu_resources(self.worker_cpus)
 
     def teardown(self, worker: Worker):
