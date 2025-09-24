@@ -220,7 +220,9 @@ def _run_combine_arrays(args):
         )
         combine_arrays(input_zarrays, output_zarray, dask_client,
                        partition_size=args.partition_size)
-        logger.info('DONE!')
+        logger.info(f'Finished combining all arrays into {args.output}:{args.output_subpath}!')
+
+        dask_client.close()
 
 
 def _create_ome_metadata(dataset_path, axes, voxel_spacing, final_ndims, default_unit='um'):
