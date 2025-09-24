@@ -223,8 +223,6 @@ def _run_combine_arrays(args):
                        partition_size=args.partition_size)
         logger.info('DONE!')
 
-    dask_client.close()
-
 
 def _create_ome_metadata(dataset_path, axes, voxel_spacing, final_ndims, default_unit='um'):
     scale = ([1] if final_ndims == 4 else [1, 1]) + voxel_spacing
