@@ -58,6 +58,12 @@ def _define_args():
                              dest='output',
                              type=str,
                              help = "Output container directory")
+    input_args.add_argument('--voxel-spacing',
+                            type=_inttuple,
+                            dest='voxel_spacing',
+                            metavar='X,Y,Z',
+                            default=(1, 1, 1),
+                            help='Spatial output chunks')
     input_args.add_argument('--output-subpath',
                              dest='output_subpath',
                              type=str,
@@ -66,7 +72,7 @@ def _define_args():
                             type=_inttuple,
                             dest='output_chunks',
                             metavar='X,Y,Z',
-                            default=(128,128,128),
+                            default=(128, 128, 128),
                             help='Spatial output chunks')
     input_args.add_argument('--output_type',
                             type=str,
@@ -140,7 +146,7 @@ def _run_combine_arrays(args):
     for ap in args.array_params:
         array_container = ap.sourcePath if ap.sourcePath else args.input
         zgroup, zattrs, zsubpath = open_zarr(array_container, ap.sourceSubpath, mode='r')
-        zarray = zgroup[zsubpath]
+        zarray = zgroup[zsubpath] if zsubpath else zgroup
 
         current_voxel_spacing = get_voxel_spacing(zattrs)
         if voxel_spacing is None:
@@ -182,6 +188,9 @@ def _run_combine_arrays(args):
     if len(errors_found) > 0:
         print(f'Errors found: {errors_found}')
     else:
+        if voxel_spacing is None:
+            voxel_spacing = list(args.voxel_spacing[::-1])
+
         ome_metadata = _create_ome_metadata(args.output_subpath,
                                             axes,
                                             voxel_spacing, 

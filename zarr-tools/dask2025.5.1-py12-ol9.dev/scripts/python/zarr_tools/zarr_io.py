@@ -195,19 +195,33 @@ def _extract_numeric_comp(v):
 
 
 def _open_simple_zarr(data_container, data_subpath):
-    a = (data_container[data_subpath] 
-        if data_subpath and data_subpath != '.'
-        else data_container)
-    dataset_comps = [c for c in data_subpath.split('/') if c]
-    parent_group_subpath = '/'.join(dataset_comps[:-1])
-    if parent_group_subpath == '':
-        parent_group = data_container
-    else:
-        parent_group = data_container[parent_group_subpath]
+    if not data_subpath or data_subpath == '.':
+        # the input parameter is an array
+        shape = data_container.shape
+        dtype = data_container.dtype
+        chunks = data_container.chunks
 
-    attrs = parent_group.attrs.asdict()
-    _set_array_attrs(attrs, data_subpath, a.shape, a.dtype, a.chunks)
-    return parent_group, attrs, (dataset_comps[-1] if len(dataset_comps) > 0 else '')
+        attrs = data_container.attrs.asdict()
+
+        _set_array_attrs(attrs, data_subpath, shape, dtype, chunks)
+        return data_container, attrs, ''
+    else:
+        a = data_container[data_subpath]
+        shape = a.shape
+        dtype = a.dtype
+        chunks = a.chunks
+
+        dataset_comps = [c for c in data_subpath.split('/') if c]
+        parent_group_subpath = '/'.join(dataset_comps[:-1])
+        if parent_group_subpath == '':
+            parent_group = data_container
+        else:
+            parent_group = data_container[parent_group_subpath]
+
+        attrs = parent_group.attrs.asdict()
+
+        _set_array_attrs(attrs, data_subpath, shape, dtype, chunks)
+        return parent_group, attrs, (dataset_comps[-1] if len(dataset_comps) > 0 else '')
 
 
 def _set_array_attrs(attrs, subpath, shape, dtype, chunks):
