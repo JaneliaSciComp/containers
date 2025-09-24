@@ -114,7 +114,7 @@ def open_zarr(data_path:str, data_subpath:str, data_store_name:str|None=None, mo
         raise e
 
 
-def _get_data_store(data_path, data_subpath, data_store_name):
+def _get_data_store(data_path, data_subpath, data_store_name, dimension_separator=None):
     """
     This methods adjusts the container and dataset paths such that
     the container paths always contains a .attrs file
@@ -148,7 +148,7 @@ def _get_data_store(data_path, data_subpath, data_store_name):
     new_subpath = '/'.join(dataset_comps[dataset_comps_index:])
 
     logger.debug(f'Found zarr container at {container_path}:{new_subpath}')
-    return zarr.DirectoryStore(container_path, dimension_separator='/'), new_subpath
+    return zarr.DirectoryStore(container_path, dimension_separator=dimension_separator), new_subpath
 
 
 def _lookup_ome_multiscales(data_container, data_subpath):

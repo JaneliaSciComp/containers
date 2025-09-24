@@ -1,5 +1,4 @@
 import logging
-import traceback
 import zarr
 
 from dask.array.core import slices_from_chunks, normalize_chunks

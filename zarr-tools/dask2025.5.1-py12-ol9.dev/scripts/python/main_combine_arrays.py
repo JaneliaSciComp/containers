@@ -72,7 +72,7 @@ def _define_args():
                              dest='output_subpath',
                              type=str,
                              help = "Output subpath")
-    input_args.add_argument('--output_chunks',
+    input_args.add_argument('--output-chunks',
                             type=_inttuple,
                             dest='output_chunks',
                             metavar='X,Y,Z',
@@ -218,6 +218,7 @@ def _run_combine_arrays(args):
             overwrite=args.overwrite,
             parent_array_attrs=ome_metadata
         )
+        logger.info(f'Combine {input_zarrays}')
         combine_arrays(input_zarrays, output_zarray, dask_client,
                        partition_size=args.partition_size)
         logger.info(f'Finished combining all arrays into {args.output}:{args.output_subpath}!')
@@ -280,6 +281,8 @@ def _create_ome_metadata(dataset_path, axes, voxel_spacing, final_ndims, default
                 'datasets': [
                     dataset
                 ],
+                'version': '0.4',
+                'name': '/',
             }
         ]
     }
