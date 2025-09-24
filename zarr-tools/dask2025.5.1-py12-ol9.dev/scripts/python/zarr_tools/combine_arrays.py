@@ -34,7 +34,7 @@ def combine_arrays(input_zarrays: List[Tuple[zarr.Array, int, int]],
                 traceback.print_tb(tb)
                 res = False
             else:
-                print(f'Finished writing blocks {r}')
+                logger.info(f'Finished writing blocks {r}')
 
 
 def _read_input_blocks(coords, source_arrays=[]):
