@@ -183,7 +183,7 @@ def _run_combine_arrays(args):
             elif ap.targetTp > max_tp:
                 max_tp = ap.targetTp
         
-        input_zarrays.append((zarray, ap.targetCh, ap.targetTp))
+        input_zarrays.append((array_container, zsubpath, zarray, ap.targetCh, ap.targetTp))
 
     xyz_output_chunks = args.output_chunks if args.output_chunks else (128,) * 3
 

@@ -38,7 +38,8 @@ def combine_arrays(input_zarrays: List[Tuple[zarr.Array, int, int]],
 
 
 def _read_input_blocks(coords, source_arrays=[]):
-    return [(coords, ch, tp, arr[coords[-3:]]) for (arr, ch, tp) in source_arrays]
+    # source_arrays have: (path, subpath, zarray, channel, timepoint)
+    return [(coords, ch, tp, arr[coords[-3:]]) for (_, _, arr, ch, tp) in source_arrays]
 
 
 def _write_blocks(blocks, output=[]):
