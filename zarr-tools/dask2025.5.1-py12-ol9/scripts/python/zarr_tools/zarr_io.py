@@ -48,7 +48,8 @@ def create_zarr_array(container_path:str,
         else:
             if array_subpath in root_group:
                 # if the dataset already exists, get its shape
-                current_shape = root_group[array_subpath].shape
+                zarray = root_group[array_subpath]
+                current_shape = zarray.shape
                 logger.info((
                     f'Dataset {container_path}:{array_subpath} '
                     f'already exists with shape {current_shape} '
@@ -56,15 +57,15 @@ def create_zarr_array(container_path:str,
             else:
                 # this is a new dataset 
                 current_shape = shape
-            zarray = root_group.require_dataset(
-                array_subpath,
-                shape = current_shape, # use the current shape
-                chunks=chunks,
-                dtype=dtype,
-                overwrite=True,
-                compressor=codec,
-                dimension_separator='/',
-            )
+                zarray = root_group.create_dataset(
+                    array_subpath,
+                    shape = current_shape, # use the current shape
+                    chunks=chunks,
+                    dtype=dtype,
+                    overwrite=True,
+                    compressor=codec,
+                    dimension_separator='/',
+                )
             _resize_zarr_array(zarray, shape)
             _update_parent_attrs(root_group, array_subpath, parent_array_attrs)
             zarray.attrs.update(array_attrs)
