@@ -110,10 +110,10 @@ def open_zarr(data_path:str, data_subpath:str, data_store_name:str|None=None, mo
         multiscales_group, dataset_subpath, multiscales_attrs  = _lookup_ome_multiscales(data_container, zarr_subpath)
 
         if multiscales_group is not None:
-            logger.info(f'Open OME ZARR {data_container}:{dataset_subpath}')
+            logger.info(f'Open OME ZARR {zarr_container.path}:{zarr_subpath}')
             return _open_ome_zarr(multiscales_group, dataset_subpath, multiscales_attrs)
         else:
-            logger.info(f'Open Simple ZARR {data_container}:{zarr_subpath}')
+            logger.info(f'Open Simple ZARR {data_container.path}:{zarr_subpath}')
             return _open_simple_zarr(data_container, zarr_subpath)
     except Exception as e:
         logger.error(f'Error opening {data_path}:{data_subpath} {e}')
@@ -192,21 +192,28 @@ def _open_ome_zarr(multiscales_group, dataset_subpath, attrs):
     dataset_metadata = get_dataset(multiscale_metadata, dataset_subpath)
 
     if dataset_metadata is None:
-        # could not find a dataset using the subpath 
-        # look at the last subpath component and get the dataset index from there
-        # e.g., if the subpath looks like:
-        #       '/s<n>' => datasets[n] if n < len(datasets) otherwise datasets[0]
-        dataset_comps = [c for c in dataset_subpath.split('/') if c]
-        dataset_index_comp = dataset_comps[-1]
-        logger.debug(f'No dataset was found using {dataset_subpath} - try to use: {dataset_index_comp}')
-        datasets = get_datasets(multiscale_metadata)
-        dataset_index = _extract_numeric_comp(dataset_index_comp)
-        if dataset_index < len(datasets):
-            dataset_metadata = datasets[dataset_index]
-        elif len(datasets) > 0:
-            dataset_metadata =datasets[0]
+        logger.info(f'No dataset was found using {dataset_subpath}')
+        if dataset_subpath in multiscales_group:
+            logger.debug(f'Dataset {dataset_subpath} found in the {multiscales_group.path} container but not in metadata')
+            # lookup a dataset in the metadata that could potentially have the same scale
+            # and use the transformations from that one
+            dataset_comps = [c for c in dataset_subpath.split('/') if c]
+            dataset_index_comp = dataset_comps[-1]
+            datasets = get_datasets(multiscale_metadata)
+            dataset_index = _extract_numeric_comp(dataset_index_comp)
+            if dataset_index < len(datasets):
+                dataset_with_matching_scale = datasets[dataset_index]
+                dataset_metadata = {
+                    'path': dataset_subpath,
+                    'coordinateTransformations': dataset_with_matching_scale.get('coordinateTransformations', []),
+                }
+            else:
+                dataset_metadata = {
+                    'path': dataset_subpath,
+                }
         else:
-            raise ValueError(f'No datasets found in {attrs}')
+            # could not find the dataset in the group
+            raise ValueError(f'No dataset found for {dataset_subpath}')
 
     dataset_path = dataset_metadata.get('path')
     logger.info(f'Get dataset using path: {dataset_path}')

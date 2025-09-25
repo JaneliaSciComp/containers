@@ -1,4 +1,5 @@
 import functools
+import logging
 import numpy as np
 import re
 import zarr
@@ -10,15 +11,19 @@ from .ngff.ngff_utils import (get_transformations_from_datasetpath, get_first_sp
 from xarray_multiscale import windowed_mean, windowed_mode
 
 
+logger = logging.getLogger(__name__)
+
+
 def create_multiscale(multiscale_group: zarr.Group,
                       group_attrs: dict,
-                      dataset_path: str,
+                      dataset_path: str|None,
                       dataset_pattern: str,
                       data_type: str,
                       client: Client):
     """
     Create a multiscale pyramid in the given Zarr group.
     """
+    logger.info(f'Create multiscale for dataset at {multiscale_group.path}:{dataset_path}')
     dataset_regex = re.compile(dataset_pattern)
     pyramid_attrs = get_multiscales(group_attrs)
 
@@ -45,7 +50,7 @@ def create_multiscale(multiscale_group: zarr.Group,
                                if is_spatial_axis(i) else t
                                for i,t in enumerate(source_dataset_translation))
 
-    print((
+    logger.info((
         f'Source level: {source_dataset_level}, '
         f'source dataset path: {dataset_path}, '
         f'shape: {source_dataset_shape} '
@@ -79,7 +84,7 @@ def create_multiscale(multiscale_group: zarr.Group,
 
         downsampling_factors = tuple(int(dataset_shape[i] // new_level_shape[i])
                                      for i, _ in enumerate(dataset_shape))
-        print((
+        logger.info((
             f'Level: {new_level}, '
             f'level dataset path: {new_level_path}, '
             f'level dataset shape: {new_level_shape} '
@@ -95,7 +100,7 @@ def create_multiscale(multiscale_group: zarr.Group,
             translation_transform=new_level_translation
         )
 
-        print((
+        logger.info((
             f'Create new dataset for level {new_level} at {new_level_path} '
             f'pyramid_attrs -> {pyramid_attrs} '
         ))

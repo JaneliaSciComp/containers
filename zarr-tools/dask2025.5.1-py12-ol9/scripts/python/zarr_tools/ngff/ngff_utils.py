@@ -69,17 +69,16 @@ def get_dataset(multiscale_attrs, dataset_path):
     for ds in datasets:
         ds_path = ds.get('path', '')
         ds_path_comps = [c for c in ds_path.split('/') if c]
-        print((
+        logger.info((
             f'Compare current dataset path: {ds_path} ({ds_path_comps}) '
             f'with {dataset_path} ({dataset_path_comps}) '
         ))
-        if (len(ds_path_comps) <= len(dataset_path_comps) and
-            tuple(ds_path_comps) == tuple(dataset_path_comps[-len(ds_path_comps):])):
+        if tuple(ds_path_comps) == tuple(dataset_path_comps):
             # found a dataset that has a path matching a suffix of the dataset_subpath arg
-            print(f'Found dataset at {ds_path}')
+            logger.info(f'Found dataset at {ds_path}')
             return ds
 
-        return None
+    return None
 
 
 def get_dataset_transformations(dataset, default_scale=None, default_translation=None):

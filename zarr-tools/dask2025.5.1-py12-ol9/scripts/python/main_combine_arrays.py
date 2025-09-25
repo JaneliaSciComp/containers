@@ -84,6 +84,7 @@ def _define_args():
                             help='Output type')
     input_args.add_argument('--overwrite',
                             dest='overwrite',
+                            default=False,
                             action='store_true',
                             help='Overwrite container if it exists')
 
@@ -103,6 +104,12 @@ def _define_args():
                             type=_arrayparams,
                             dest='array_params',
                             help='Input array argument')
+
+    input_args.add_argument('--skip-ome-metadata',
+                            dest='skip_ome_metadata',
+                            default=False,
+                            action='store_true',
+                            help='If set skip creation of the OME metadata')
 
     input_args.add_argument('--logging-config',
                             dest='logging_config',
@@ -205,10 +212,13 @@ def _run_combine_arrays(args):
         if voxel_spacing is None:
             voxel_spacing = list(args.voxel_spacing[::-1])
 
-        ome_metadata = _create_ome_metadata(args.output_subpath,
-                                            axes,
-                                            voxel_spacing, 
-                                            (4 if max_tp is None else 5))
+        if args.skip_ome_metadata:
+            ome_metadata = {}
+        else:
+            ome_metadata = _create_ome_metadata(args.output_subpath,
+                                                axes,
+                                                voxel_spacing, 
+                                                (4 if max_tp is None else 5))
         logger.info((
             f'Create output {args.output}:{args.output_subpath}:{output_shape}:{output_chunks}:{output_type} '
             f'OME metadata: {ome_metadata}'
