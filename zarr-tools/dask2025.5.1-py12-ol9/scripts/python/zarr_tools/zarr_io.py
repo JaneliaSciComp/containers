@@ -18,7 +18,7 @@ def create_zarr_array(container_path:str,
                       dtype:str,
                       store_name:str|None=None,
                       compressor:str|None=None,
-                      compression_level:int,
+                      compression_level:int=0,
                       overwrite=False,
                       parent_array_attrs={},
                       **array_attrs):
