@@ -18,20 +18,20 @@ def _define_args():
     input_args.add_argument('-i','--input',
                              dest='input',
                              type=str,
-                             help = "input directory")
+                             help = 'input directory')
     input_args.add_argument('--input-subpath', '--input_subpath',
                              dest='input_subpath',
                              type=str,
-                             help = "input subpath")
+                             help = 'input subpath')
     input_args.add_argument('--dataset-pattern',
                              dest='dataset_pattern',
                              type=str,
-                             help = "dataset pattern")
+                             help = 'dataset pattern')
     input_args.add_argument('--data-type',
                              dest='data_type',
                              type=str,
                              default='raw',
-                             help = "data type (e.g. segmentation, raw)")
+                             help = 'data type (e.g. segmentation, raw)')
 
     input_args.add_argument('--logging-config',
                             dest='logging_config',

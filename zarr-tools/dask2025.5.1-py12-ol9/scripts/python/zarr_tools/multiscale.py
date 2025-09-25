@@ -107,6 +107,7 @@ def create_multiscale(multiscale_group: zarr.Group,
             dtype=dataset_arr.dtype,
             compressor=dataset_arr.compressor,
             fill_value=dataset_arr.fill_value,
+            dimension_separator='/'
         )
 
         output_chunks = normalize_chunks(new_dataset_arr.chunks, shape=new_dataset_arr.shape)

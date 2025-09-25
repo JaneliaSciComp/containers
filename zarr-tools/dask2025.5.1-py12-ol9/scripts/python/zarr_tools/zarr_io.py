@@ -43,6 +43,7 @@ def create_zarr_array(container_path:str,
                 dtype=dtype,
                 overwrite=True,
                 compressor=codec,
+                dimension_separator='/',
             )
         else:
             if array_subpath in root_group:
@@ -62,6 +63,7 @@ def create_zarr_array(container_path:str,
                 dtype=dtype,
                 overwrite=True,
                 compressor=codec,
+                dimension_separator='/',
             )
             _resize_zarr_array(zarray, shape)
             _update_parent_attrs(root_group, array_subpath, parent_array_attrs)
@@ -77,6 +79,7 @@ def create_zarr_array(container_path:str,
                 dtype=dtype,
                 overwrite=True,
                 compressor=codec,
+                dimension_separator='/',
             )
         elif zarr.storage.contains_array(store):
             # the array already exists
@@ -91,14 +94,15 @@ def create_zarr_array(container_path:str,
                 chunks=chunks,
                 dtype=dtype,
                 compressor=codec,
+                dimension_separator='/',
             )
         zarray.attrs.update(array_attrs)
         return zarray
 
 
-def open_zarr(data_path:str, data_subpath:str, data_store_name:str|None=None, mode:str='r'):
+def open_zarr(data_path:str, data_subpath:str, data_store_name:str|None=None, mode:str='r', dimension_separator:str|None=None):
     try:
-        zarr_container, zarr_subpath = _get_data_store(data_path, data_subpath, data_store_name)
+        zarr_container, zarr_subpath = _get_data_store(data_path, data_subpath, data_store_name, dimension_separator=dimension_separator)
 
         logger.info(f'Open zarr container: {zarr_container} ({zarr_subpath}), mode: {mode}')
         data_container = zarr.open(store=zarr_container, mode=mode)
