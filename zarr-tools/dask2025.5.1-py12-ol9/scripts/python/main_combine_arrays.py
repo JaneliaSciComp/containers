@@ -90,6 +90,11 @@ def _define_args():
     input_args.add_argument('--compressor',
                             default='zstd',
                             help='Zarr array compression algorithm')
+    input_args.add_argument('--compression-level',
+                            dest='compression_level',
+                            type=int,
+                            default=5,
+                            help='Zarr array compression level')
     
     input_args.add_argument('--array-params',
                             nargs='+',
@@ -215,6 +220,7 @@ def _run_combine_arrays(args):
             output_chunks,
             output_type,
             compressor=args.compressor,
+            compression_level=args.compression_level,
             overwrite=args.overwrite,
             parent_array_attrs=ome_metadata
         )
