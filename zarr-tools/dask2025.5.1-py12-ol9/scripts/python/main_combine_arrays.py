@@ -147,10 +147,12 @@ def _run_combine_arrays(args):
 
     if args.dask_scheduler:
         dask_client = Client(address=args.dask_scheduler)
+        dask_cluster = None
     else:
         # use a local asynchronous client
-        dask_client = Client(LocalCluster(n_workers=args.local_dask_workers,
-                                          threads_per_worker=args.worker_cpus))
+        dask_cluster = LocalCluster(n_workers=args.local_dask_workers,
+                                    threads_per_worker=args.worker_cpus)
+        dask_client = Client(dask_cluster)
 
     worker_config = ConfigureWorkerPlugin(args.logging_config,
                                           worker_cpus=args.worker_cpus)
@@ -240,6 +242,8 @@ def _run_combine_arrays(args):
         logger.info(f'Finished combining all arrays into {args.output}:{args.output_subpath}!')
 
     dask_client.close()
+    if dask_cluster is not None:
+        dask_cluster.close()
 
 
 def _create_ome_metadata(dataset_path, axes, voxel_spacing, final_ndims, default_unit='um'):
