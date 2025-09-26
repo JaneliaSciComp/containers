@@ -15,7 +15,7 @@ def _define_args():
     args_parser = argparse.ArgumentParser()
 
     input_args = args_parser.add_argument_group("Input Arguments")
-    input_args.add_argument('-i','--input',
+    input_args.add_argument('-i', '--input',
                              dest='input',
                              type=str,
                              help = 'input directory')
@@ -23,17 +23,17 @@ def _define_args():
                              dest='input_subpath',
                              type=str,
                              help = 'input subpath')
-    input_args.add_argument('--dataset-pattern',
+    input_args.add_argument('--dataset-pattern', '--dataset_pattern',
                              dest='dataset_pattern',
                              type=str,
-                             help = 'dataset pattern')
-    input_args.add_argument('--data-type',
+                             help = 'dataset pattern to extract the numeric scale level')
+    input_args.add_argument('--data-type', '--data_type',
                              dest='data_type',
                              type=str,
                              default='raw',
                              help = 'data type (e.g. segmentation, raw)')
 
-    input_args.add_argument('--logging-config',
+    input_args.add_argument('--logging-config', '--logging_config',
                             dest='logging_config',
                             type=str,
                             help='Logging configuration')
