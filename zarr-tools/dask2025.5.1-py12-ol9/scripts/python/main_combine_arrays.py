@@ -50,7 +50,7 @@ def _define_args():
     args_parser = argparse.ArgumentParser()
 
     input_args = args_parser.add_argument_group("Input Arguments")
-    input_args.add_argument('-i','--input',
+    input_args.add_argument('-i', '--input',
                              dest='input',
                              type=str,
                              help = "Default input container directory")
@@ -62,23 +62,23 @@ def _define_args():
                              dest='output',
                              type=str,
                              help = "Output container directory")
-    input_args.add_argument('--voxel-spacing',
+    input_args.add_argument('--voxel-spacing', '--voxel_spacing',
                             type=_inttuple,
                             dest='voxel_spacing',
                             metavar='X,Y,Z',
                             default=(1, 1, 1),
                             help='Spatial output chunks')
-    input_args.add_argument('--output-subpath',
+    input_args.add_argument('--output-subpath', '--output_subpath',
                              dest='output_subpath',
                              type=str,
                              help = "Output subpath")
-    input_args.add_argument('--output-chunks',
+    input_args.add_argument('--output-chunks', '--output_chunks',
                             type=_inttuple,
                             dest='output_chunks',
                             metavar='X,Y,Z',
                             default=(128, 128, 128),
                             help='Spatial output chunks')
-    input_args.add_argument('--output_type',
+    input_args.add_argument('--output-type', '--output_type',
                             type=str,
                             dest='output_type',
                             help='Output type')
@@ -91,13 +91,13 @@ def _define_args():
     input_args.add_argument('--compressor',
                             default='zstd',
                             help='Zarr array compression algorithm')
-    input_args.add_argument('--compression-level',
+    input_args.add_argument('--compression-level', '--compression_level',
                             dest='compression_level',
                             type=int,
                             default=5,
                             help='Zarr array compression level')
     
-    input_args.add_argument('--array-params',
+    input_args.add_argument('--array-params', '--array_params',
                             nargs='+',
                             metavar='SOURCEPATH:SOURCESUBPATH:TARGETCH:TARGETTP',
                             default=[None, None, None, None],
@@ -105,13 +105,13 @@ def _define_args():
                             dest='array_params',
                             help='Input array argument')
 
-    input_args.add_argument('--skip-ome-metadata',
+    input_args.add_argument('--skip-ome-metadata', '--skip_ome_metadata',
                             dest='skip_ome_metadata',
                             default=False,
                             action='store_true',
                             help='If set skip creation of the OME metadata')
 
-    input_args.add_argument('--logging-config',
+    input_args.add_argument('--logging-config', '--logging_config',
                             dest='logging_config',
                             type=str,
                             help='Logging configuration')
@@ -133,7 +133,7 @@ def _define_args():
                                   dest='worker_cpus',
                                   type=int,
                                   help='Number of cpus allocated to a dask worker')
-    distributed_args.add_argument('--partition-size',
+    distributed_args.add_argument('--partition-size', '--partition_size',
                                   dest='partition_size',
                                   type=int,
                                   default=100000,
