@@ -63,11 +63,13 @@ def _run_multiscale(args):
     load_dask_config(args.dask_config)
 
     if args.dask_scheduler:
+        dask_cluster = None
         dask_client = Client(address=args.dask_scheduler)
     else:
         # use a local asynchronous client
-        dask_client = Client(LocalCluster(n_workers=args.local_dask_workers,
-                                          threads_per_worker=args.worker_cpus))
+        dask_cluster = LocalCluster(n_workers=args.local_dask_workers,
+                                    threads_per_worker=args.worker_cpus)
+        dask_client = Client(dask_cluster)
 
     worker_config = ConfigureWorkerPlugin(args.logging_config,
                                           worker_cpus=args.worker_cpus)
@@ -81,7 +83,8 @@ def _run_multiscale(args):
     create_multiscale(dataset_container, dataset_attrs, dataset_path, dataset_pattern, args.data_type, dask_client)
 
     dask_client.close()
-
+    if dask_cluster is not None:
+        dask_cluster.close()
 
 
 def main():
