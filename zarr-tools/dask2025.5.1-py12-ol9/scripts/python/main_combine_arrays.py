@@ -242,10 +242,9 @@ def _run_combine_arrays(args):
                        partition_size=args.partition_size)
         logger.info(f'Finished combining all arrays into {args.output}:{args.output_subpath}!')
 
+    dask_client.close()
     if dask_cluster is not None:
         dask_cluster.close()
-    else:
-        dask_client.close()
 
 
 def _create_ome_metadata(dataset_path, axes, voxel_spacing, final_ndims, default_unit='um'):

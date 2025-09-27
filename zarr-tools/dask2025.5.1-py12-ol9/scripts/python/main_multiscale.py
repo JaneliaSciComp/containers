@@ -18,30 +18,35 @@ def _define_args():
     input_args.add_argument('-i', '--input',
                              dest='input',
                              type=str,
-                             help = 'input directory')
+                             help='input directory')
     input_args.add_argument('--input-subpath', '--input_subpath',
                              dest='input_subpath',
                              type=str,
-                             help = 'input subpath')
+                             help='input subpath')
     input_args.add_argument('--dataset-pattern', '--dataset_pattern',
                              dest='dataset_pattern',
                              type=str,
-                             help = 'dataset pattern to extract the numeric scale level')
+                             help='dataset pattern to extract the numeric scale level')
     input_args.add_argument('--data-type', '--data_type',
                              dest='data_type',
                              type=str,
                              default='raw',
-                             help = 'data type (e.g. segmentation, raw)')
+                             help='data type (e.g. segmentation, raw)')
     input_args.add_argument('--antialiasing',
                              dest='antialiasing',
                              default=False,
                              action='store_true',
-                             help = 'antialiasing')
+                             help='antialiasing')
     input_args.add_argument('--skip-metadata', '--skip_metadata',
                              dest='skip_metadata',
                              default=False,
                              action='store_true',
-                             help = 'Skip metadata update')
+                             help='Skip metadata update')
+    input_args.add_argument('--max-levels', '--max_levels',
+                             dest='max_levels',
+                             type=int,
+                             default=-1,
+                             help='Max pyramid levels')
 
     input_args.add_argument('--logging-config', '--logging_config',
                             dest='logging_config',
@@ -100,13 +105,13 @@ def _run_multiscale(args):
     create_multiscale(dataset_container, dataset_attrs, dataset_path, dataset_pattern,
                       args.data_type, args.antialiasing,
                       partition_size,
+                      args.max_levels,
                       args.skip_metadata,
                       dask_client)
 
+    dask_client.close()
     if dask_cluster is not None:
         dask_cluster.close()
-    else:
-        dask_client.close()
 
 
 def main():

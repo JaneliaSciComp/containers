@@ -24,6 +24,7 @@ def create_multiscale(multiscale_group: zarr.Group,
                       data_type: str,
                       antialiasing:bool,
                       partition_size:int,
+                      max_levels:int,
                       skip_attrs_update:bool,
                       client: Client):
     """
@@ -78,8 +79,13 @@ def create_multiscale(multiscale_group: zarr.Group,
         level = int(match.group(1))
         return match.group(0).replace(str(level), str(level + 1), 1)
 
+    nlevels = 0
     while any([dim > dataset_blocksize[i]
               for i,dim in enumerate(current_level_shape) if is_spatial_axis(i)]):
+
+        if max_levels > 0 and nlevels >= max_levels:
+            break
+
         # all spatial dimensions are larger than the corresponding block size
         new_level_path = dataset_regex.sub(next_level, dataset_path)
         new_level = int(dataset_regex.match(new_level_path).group(1))
@@ -131,7 +137,7 @@ def create_multiscale(multiscale_group: zarr.Group,
             _downsample,
             dataset_arr,
             new_dataset_arr,
-            downsampling_factors=relative_scaling_factors,
+            downsampling_factors=tuple(relative_scaling_factors),
             method='mode' if data_type == 'segmentation' else 'mean',
             antialising=antialiasing,
         )
@@ -157,6 +163,7 @@ def create_multiscale(multiscale_group: zarr.Group,
 
         dataset_path = new_level_path
         dataset_arr = new_dataset_arr
+        nlevels = nlevels + 1
 
     if not skip_attrs_update:
         multiscale_group.attrs.update({
@@ -167,9 +174,9 @@ def create_multiscale(multiscale_group: zarr.Group,
 def _downsample(input:zarr.Array,
                 output:zarr.Array,
                 output_coords: Tuple[slice, ...],
-                downsampling_factors=(2,2,2),
-                method='mean',
-                antialising=False):
+                downsampling_factors:Tuple[int, ...]=(2,2,2),
+                method:str='mean',
+                antialising:bool=False):
     """
     Downsample source to target shape using the specified method.
     """
