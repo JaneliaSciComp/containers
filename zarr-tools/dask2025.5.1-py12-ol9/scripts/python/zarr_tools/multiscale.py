@@ -24,6 +24,7 @@ def create_multiscale(multiscale_group: zarr.Group,
                       data_type: str,
                       antialiasing:bool,
                       partition_size:int,
+                      skip_attrs_update:bool,
                       client: Client):
     """
     Create a multiscale pyramid in the given Zarr group.
@@ -157,9 +158,10 @@ def create_multiscale(multiscale_group: zarr.Group,
         dataset_path = new_level_path
         dataset_arr = new_dataset_arr
 
-    multiscale_group.attrs.update({
-        'multiscales': [ pyramid_attrs ],
-    })
+    if not skip_attrs_update:
+        multiscale_group.attrs.update({
+            'multiscales': [ pyramid_attrs ],
+        })
 
 
 def _downsample(input:zarr.Array,

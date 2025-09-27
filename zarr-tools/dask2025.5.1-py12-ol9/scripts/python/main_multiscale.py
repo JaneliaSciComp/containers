@@ -37,6 +37,11 @@ def _define_args():
                              default=False,
                              action='store_true',
                              help = 'antialiasing')
+    input_args.add_argument('--skip-metadata', '--skip_metadata',
+                             dest='skip_metadata',
+                             default=False,
+                             action='store_true',
+                             help = 'Skip metadata update')
 
     input_args.add_argument('--logging-config', '--logging_config',
                             dest='logging_config',
@@ -94,7 +99,9 @@ def _run_multiscale(args):
     dataset_pattern = args.dataset_pattern if args.dataset_pattern else '.*(\\d+?)'
     create_multiscale(dataset_container, dataset_attrs, dataset_path, dataset_pattern,
                       args.data_type, args.antialiasing,
-                      partition_size, dask_client)
+                      partition_size,
+                      args.skip_metadata,
+                      dask_client)
 
     if dask_cluster is not None:
         dask_cluster.close()
