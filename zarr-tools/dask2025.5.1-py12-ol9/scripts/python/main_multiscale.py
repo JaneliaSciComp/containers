@@ -109,6 +109,7 @@ def _run_multiscale(args):
                       args.skip_metadata,
                       dask_client)
 
+    logger.info(f'Finished multiscale for {args.input}:{args.input_path}')
     dask_client.close()
     if dask_cluster is not None:
         dask_cluster.close()
