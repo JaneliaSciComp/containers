@@ -32,6 +32,11 @@ def _define_args():
                              type=str,
                              default='raw',
                              help = 'data type (e.g. segmentation, raw)')
+    input_args.add_argument('--antialiasing',
+                             dest='antialiasing',
+                             default=False,
+                             action='store_true',
+                             help = 'antialiasing')
 
     input_args.add_argument('--logging-config', '--logging_config',
                             dest='logging_config',
@@ -55,6 +60,11 @@ def _define_args():
                                   dest='worker_cpus',
                                   type=int,
                                   help='Number of cpus allocated to a dask worker')
+    distributed_args.add_argument('--partition-size', '--partition_size',
+                                  dest='partition_size',
+                                  type=int,
+                                  default=10000,
+                                  help='Processing partition size')
 
     return args_parser
 
@@ -68,7 +78,8 @@ def _run_multiscale(args):
     else:
         # use a local asynchronous client
         dask_cluster = LocalCluster(n_workers=args.local_dask_workers,
-                                    threads_per_worker=args.worker_cpus)
+                                    threads_per_worker=args.worker_cpus,
+                                    processes=False)
         dask_client = Client(dask_cluster)
 
     worker_config = ConfigureWorkerPlugin(args.logging_config,
@@ -79,8 +90,11 @@ def _run_multiscale(args):
         args.input, args.input_subpath, mode='a'
     )
 
+    partition_size = args.partition_size if args.partition_size > 0 else 1
     dataset_pattern = args.dataset_pattern if args.dataset_pattern else '.*(\\d+?)'
-    create_multiscale(dataset_container, dataset_attrs, dataset_path, dataset_pattern, args.data_type, dask_client)
+    create_multiscale(dataset_container, dataset_attrs, dataset_path, dataset_pattern,
+                      args.data_type, args.antialiasing,
+                      partition_size, dask_client)
 
     dask_client.close()
     if dask_cluster is not None:
