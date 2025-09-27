@@ -96,9 +96,10 @@ def _run_multiscale(args):
                       args.data_type, args.antialiasing,
                       partition_size, dask_client)
 
-    dask_client.close()
     if dask_cluster is not None:
         dask_cluster.close()
+    else:
+        dask_client.close()
 
 
 def main():
