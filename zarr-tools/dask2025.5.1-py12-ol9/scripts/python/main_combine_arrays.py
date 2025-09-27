@@ -53,15 +53,15 @@ def _define_args():
     input_args.add_argument('-i', '--input',
                              dest='input',
                              type=str,
-                             help = "Default input container directory")
+                             help='Default input container directory')
     input_args.add_argument('--input-subpath', '--input_subpath',
                              dest='input_subpath',
                              type=str,
-                             help = "input subpath")
+                             help='input subpath')
     input_args.add_argument('-o','--output',
                              dest='output',
                              type=str,
-                             help = "Output container directory")
+                             help='Output container directory')
     input_args.add_argument('--voxel-spacing', '--voxel_spacing',
                             type=_inttuple,
                             dest='voxel_spacing',
@@ -71,7 +71,7 @@ def _define_args():
     input_args.add_argument('--output-subpath', '--output_subpath',
                              dest='output_subpath',
                              type=str,
-                             help = "Output subpath")
+                             help='Output subpath')
     input_args.add_argument('--output-chunks', '--output_chunks',
                             type=_inttuple,
                             dest='output_chunks',
