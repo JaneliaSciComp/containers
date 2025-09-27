@@ -52,5 +52,6 @@ def _write_blocks(blocks, output=[]):
         # write the block
         output[block_coords] = block
         written_blocks.append(block_coords)
+        del block
 
     return written_blocks

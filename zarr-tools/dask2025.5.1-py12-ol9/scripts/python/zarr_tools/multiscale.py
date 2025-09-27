@@ -2,6 +2,7 @@ import functools
 import logging
 import numpy as np
 import re
+import scipy.ndimage as ndi
 import zarr
 
 from dask.array.core import normalize_chunks, slices_from_chunks
