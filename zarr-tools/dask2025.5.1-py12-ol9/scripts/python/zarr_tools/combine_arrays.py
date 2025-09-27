@@ -22,7 +22,7 @@ def combine_arrays(input_zarrays: List[Tuple[zarr.Array, int, int]],
     logger.info(f'Partition {len(block_slices)} into {len(partitioned_block_slices)} partitions of up to {partition_size} blocks')
 
     for idx, part in enumerate(partitioned_block_slices):
-        logger.info(f'Process partition {idx}')
+        logger.info(f'Process partition {idx} ({len(part)} blocks)')
         input_blocks = client.map(_read_input_blocks, part, source_arrays=input_zarrays)
         res = client.map(_write_blocks, input_blocks, output=output_zarray)
 
