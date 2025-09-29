@@ -283,7 +283,7 @@ def _create_ome_metadata(dataset_path, axes, voxel_spacing, final_ndims, default
 
     if final_ndims > 4:
         multiscale_axes.insert(0, {
-            "name": "c",
+            "name": "t",
             "type": "time",
         })
 
