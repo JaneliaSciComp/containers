@@ -133,6 +133,11 @@ def _define_args():
                                   dest='worker_cpus',
                                   type=int,
                                   help='Number of cpus allocated to a dask worker')
+    distributed_args.add_argument('--local-use-threads', '--local_use_threads',
+                                  dest='local_use_threads',
+                                  action='store_true',
+                                  default=False,
+                                  help='use threads instead of processes for local dask')
     distributed_args.add_argument('--partition-size', '--partition_size',
                                   dest='partition_size',
                                   type=int,
@@ -152,7 +157,7 @@ def _run_combine_arrays(args):
         # use a local asynchronous client
         dask_cluster = LocalCluster(n_workers=args.local_dask_workers,
                                     threads_per_worker=args.worker_cpus,
-                                    processes=False)
+                                    processes=(not args.local_use_threads))
         dask_client = Client(dask_cluster)
 
     worker_config = ConfigureWorkerPlugin(args.logging_config,

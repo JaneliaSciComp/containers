@@ -90,7 +90,7 @@ def create_multiscale(multiscale_group: zarr.Group,
         new_level_path = dataset_regex.sub(next_level, dataset_path)
         new_level = int(dataset_regex.match(new_level_path).group(1))
         relative_scaling_factors = np.array([2
-                                            if is_spatial_axis(i) and dim > dataset_blocksize[i]
+                                            if is_spatial_axis(i) and dim > dataset_blocksize[i] // 2
                                             else 1
                                             for i, dim in enumerate(current_level_shape)]).astype(int)
 
