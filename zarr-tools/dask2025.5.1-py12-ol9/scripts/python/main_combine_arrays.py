@@ -1,4 +1,5 @@
 import argparse
+import json
 
 from dask.distributed import (Client, LocalCluster)
 from dataclasses import dataclass
@@ -37,6 +38,13 @@ def _arrayparams(s: str):
         raise argparse.ArgumentTypeError(f'Invalid target timepoint in input array arg: {s}')
 
     return ZArrayParams(sourcePath, sourceSubpath, targetCh, targetTp)
+
+
+def _as_json(arg):
+    if arg:
+        return json.loads(arg)
+    else:
+        return {}
 
 
 def _inttuple(arg):
@@ -91,11 +99,11 @@ def _define_args():
     input_args.add_argument('--compressor',
                             default='zstd',
                             help='Zarr array compression algorithm')
-    input_args.add_argument('--compression-level', '--compression_level',
-                            dest='compression_level',
-                            type=int,
-                            default=5,
-                            help='Zarr array compression level')
+    input_args.add_argument('--compression-opts', '--compression_opts',
+                            dest='compression_opts',
+                            type=_as_json,
+                            default={},
+                            help='Zarr array compression options')
     
     input_args.add_argument('--array-params', '--array_params',
                             nargs='+',
@@ -238,7 +246,7 @@ def _run_combine_arrays(args):
             output_chunks,
             output_type,
             compressor=args.compressor,
-            compression_level=args.compression_level,
+            compression_opts=args.compression_opts,
             overwrite=args.overwrite,
             parent_array_attrs=ome_metadata
         )

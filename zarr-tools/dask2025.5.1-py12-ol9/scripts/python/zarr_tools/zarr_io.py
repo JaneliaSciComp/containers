@@ -18,7 +18,7 @@ def create_zarr_array(container_path:str,
                       dtype:str,
                       store_name:str|None=None,
                       compressor:str|None=None,
-                      compression_level:int=0,
+                      compression_opts:dict={},
                       overwrite=False,
                       parent_array_attrs={},
                       **array_attrs):
@@ -30,7 +30,7 @@ def create_zarr_array(container_path:str,
         store = zarr.DirectoryStore(real_container_path, dimension_separator='/')
 
     codec = (None if compressor is None
-             else codecs.get_codec(dict(id=compressor, level=compression_level)))
+             else codecs.get_codec({"id": compressor, **compression_opts}))
 
     if array_subpath:
         root_group = zarr.open_group(store=store, mode='a')
