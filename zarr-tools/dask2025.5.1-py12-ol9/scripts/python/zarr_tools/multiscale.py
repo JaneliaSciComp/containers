@@ -205,7 +205,6 @@ def _get_downsample_factors(level:int,
             anisotropy = 1
         anisotropies.append(anisotropy)
 
-    print('!!!!!!!! ANISO ', anisotropies)
     for i in range(len(data_shape)):
         if spatial_axes_mask[i] and data_shape[i] > target_shape[i] // 2:
             if abs(1 - anisotropies[i]) < anisotropy_threshold:
