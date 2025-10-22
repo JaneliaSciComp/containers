@@ -10,7 +10,7 @@ from dask.distributed import Client, as_completed
 from .ngff.ngff_utils import (get_transformations_from_datasetpath,
                               get_first_space_axis, get_multiscales, add_new_dataset)
 from toolz import partition_all
-from typing import Tuple
+from typing import List, Tuple
 from xarray_multiscale import windowed_mean, windowed_mode
 
 
@@ -79,9 +79,10 @@ def create_multiscale(multiscale_group: zarr.Group,
         level = int(match.group(1))
         return match.group(0).replace(str(level), str(level + 1), 1)
 
+    spatial_axes_mask = [is_spatial_axis(i) for i in range(len(dataset_shape))]
+
     nlevels = 0
-    while any([dim > dataset_blocksize[i]
-              for i,dim in enumerate(current_level_shape) if is_spatial_axis(i)]):
+    while True:
 
         if max_levels > 0 and nlevels >= max_levels:
             break
@@ -89,10 +90,14 @@ def create_multiscale(multiscale_group: zarr.Group,
         # all spatial dimensions are larger than the corresponding block size
         new_level_path = dataset_regex.sub(next_level, dataset_path)
         new_level = int(dataset_regex.match(new_level_path).group(1))
-        relative_scaling_factors = np.array([2
-                                            if is_spatial_axis(i) and dim > dataset_blocksize[i] // 2
-                                            else 1
-                                            for i, dim in enumerate(current_level_shape)]).astype(int)
+
+        relative_scaling_factors, found = _get_downsample_factors(new_level,
+                                                                  current_level_shape,
+                                                                  dataset_blocksize,
+                                                                  tuple(absolute_scaling_factors * level0_scale),
+                                                                  spatial_axes_mask)
+        if not found:
+            break
 
         absolute_scaling_factors = absolute_scaling_factors * relative_scaling_factors
         current_level_scale = tuple(absolute_scaling_factors * level0_scale)
@@ -169,6 +174,49 @@ def create_multiscale(multiscale_group: zarr.Group,
         multiscale_group.attrs.update({
             'multiscales': [ pyramid_attrs ],
         })
+
+
+def _get_downsample_factors(level:int,
+                            data_shape:Tuple[int],
+                            target_shape:Tuple[int],
+                            data_spacing:Tuple[float],
+                            spatial_axes_mask:List[bool],
+                            anisotropy_threshold:float=0.1):
+
+    if all(not spatial_axes_mask[i] or data_shape[i] <= target_shape[i] for i in range(len(data_shape))):
+        return [1] * len(data_shape), False
+
+    data_size = np.array(data_shape) * data_spacing
+    logger.info((
+        f'Level {level}: get downsample factors for shape {data_shape} to {target_shape}, '
+        f'spacing: {data_spacing}, spatial axes mask {spatial_axes_mask}, '
+        f'volume size: {data_size}'
+    ))
+    factors = [1] * len(data_shape)
+    factors_changed = False
+    min_spacing = min(s for i,s in enumerate(data_spacing) if spatial_axes_mask[i] )
+    anisotropies = []
+    for i, s in enumerate(data_spacing):
+        # Calculate ratios of current spacing to all others
+        # for example for 3D:  [(z/y, z/x),(y/z, y/x),(x/z, x/y)]
+        if spatial_axes_mask[i]:
+            anisotropy = data_spacing[i] / min_spacing
+        else:
+            anisotropy = 1
+        anisotropies.append(anisotropy)
+
+    print('!!!!!!!! ANISO ', anisotropies)
+    for i in range(len(data_shape)):
+        if spatial_axes_mask[i] and data_shape[i] > target_shape[i] // 2:
+            if abs(1 - anisotropies[i]) < anisotropy_threshold:
+                factors[i] = 2
+                factors_changed = True
+
+    logger.info((
+        f'Level {level}: downsample factors for shape {data_shape} to {target_shape}, '
+        f'spacing: {data_spacing}, spatial axes mask {spatial_axes_mask}: {factors} '
+    ))
+    return np.array(factors).astype(int), factors_changed
 
 
 def _downsample(input:zarr.Array,

@@ -43,7 +43,6 @@ def downsample_save_chunk_mode(
     """
     
     in_slices = tuple(upscale_slice(out_slice, fact) for out_slice, fact in zip(out_slices, downsampling_factors))
-    print(f'!!!! RESAMPLE {in_slices} with {downsampling_factors}')
     source_data = source[in_slices]
     # only downsample source_data if it is not all 0s
     if not (source_data == 0).all():
