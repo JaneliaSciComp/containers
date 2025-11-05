@@ -1,3 +1,4 @@
+from math import floor
 import os
 import sys
 import traceback
@@ -304,7 +305,7 @@ def _run_segmentation(args):
                 channel_axis = None
             if dask_client is not None:
                 # ignore bounding boxes
-                output_labels, _ = distributed_eval(
+                output_labels, boxes = distributed_eval(
                     args.input,
                     args.input_subpath,
                     image_shape,
@@ -340,8 +341,9 @@ def _run_segmentation(args):
                     use_gpu=args.use_gpu,
                     gpu_device=args.gpu_device,
                 )
+                nlabels = len(boxes)
             else:
-                output_labels = local_eval(
+                output_labels, nlabels = local_eval(
                     args.input,
                     args.input_subpath,
                     args.input_timeindex,
@@ -372,11 +374,14 @@ def _run_segmentation(args):
                     gpu_device=args.gpu_device,
                 )
 
+            logger.info(f'Finished segmentation process. Found {nlabels-1} labels')
+
             labels_group_attrs = prepare_parent_group_attrs(
                 os.path.basename(args.output),
                 output_subpath,
                 axes=image_attrs.get('axes'),
                 coordinateTransformations=image_attrs.get('coordinateTransformations'),
+                image_label_attrs=_create_image_label_attrs(nlabels),
             )
 
             if args.output_blocksize is not None:
@@ -432,6 +437,62 @@ def _print_version_and_exit():
 
     print(cellpose_version)
     sys.exit(0)
+
+
+def _create_image_label_attrs(nlabels:int, ome_ngff_version='0.4', source_image_path='..'):
+    # set HSV parameters
+    s = 1.0
+    v = 1.0
+    colors = []
+    for l in range(nlabels-1):
+        h = l/nlabels
+        r, g, b = _hsv2rgb(h, s, v)
+        colors.append({
+            'label-value': l + 1,
+            'rgba': [r, g, b, 255]
+        })
+
+    return {
+        'colors': colors,
+        'version': ome_ngff_version,
+        'source': {
+            'image': source_image_path
+        }
+    }
+
+
+def _hsv2rgb(h:float, s:float, v:float):
+    i = floor(h * 6)
+    f = h * 6 - i
+    p = v * (1 - s)
+    q = v * (1 - f * s)
+    t = v * (1 - (1 - f) * s)
+    if i % 6 == 0:
+        r = v
+        g = t
+        b = p
+    elif i % 6 == 1:
+        r = q
+        g = v
+        b = p
+    elif i % 6 == 2:
+        r = p
+        g = v
+        b = t
+    elif i % 6 == 3:
+        r = p
+        g = q
+        b = v
+    elif i % 6 == 4:
+        r = t
+        g = p
+        b = v
+    else: # i % 6 == 5
+        r = v
+        g = p
+        b = q
+
+    return round(r * 255), round(g * 255), round(b * 255)
 
 
 def _main():

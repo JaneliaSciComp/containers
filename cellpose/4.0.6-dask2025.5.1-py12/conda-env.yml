@@ -2,12 +2,14 @@ channels:
   - conda-forge
 dependencies:
   - python=3.12
+  - c-blosc2
   - dask=2025.5.1
   - distributed=2025.5.1
   - dask-image=2024.5.3
   - pip
   - flatten_json
   - imagecodecs
+  - numcodecs
   - numpy>=1.26.0,<2
   - pyyaml
   - scikit-image>=0.21.0

@@ -5,6 +5,7 @@ dependencies:
   - pip
   - bokeh>=3.3.0
   - cachey=0.2.1
+  - c-blosc2
   - cytoolz>=0.12
   - dask=2025.5.1
   - distributed=2025.5.1
@@ -15,6 +16,7 @@ dependencies:
   - msgpack-python=1.0.7
   - nomkl
   - numpy>=1.26.0,<2
+  - numcodecs
   - pandas=2.2.2
   - psutil>=5.7.2
   - python-blosc2=3.0.0
@@ -23,6 +25,6 @@ dependencies:
   - streamz=0.6.3
   - tblib>=1.6.0
   - tornado=6.4
-  - zarr=2.16.1
+  - zarr=2.18.7
   - pip:
     - cloudpickle==3.0.0

@@ -118,7 +118,9 @@ def open(data_path, data_subpath, data_store_name=None,
 def prepare_parent_group_attrs(container_path,
                                dataset_path,
                                axes=None,
-                               coordinateTransformations=None):
+                               coordinateTransformations=None,
+                               image_label_attrs=None,
+                               ome_ngff_version='0.4'):
     if ((coordinateTransformations is None or coordinateTransformations == []) and
         axes is None):
         return {}
@@ -143,7 +145,7 @@ def prepare_parent_group_attrs(container_path,
     multiscale_attrs = {
         'name': os.path.basename(container_path),
         'axes': axes if axes is not None else [],
-        'version': '0.4',
+        'version': ome_ngff_version,
     }
 
     if scales is not None:
@@ -153,6 +155,7 @@ def prepare_parent_group_attrs(container_path,
         })
 
     return {
+        'image-label': image_label_attrs,
         'multiscales': [ multiscale_attrs ],
     }
 

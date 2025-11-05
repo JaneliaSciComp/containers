@@ -404,9 +404,10 @@ def local_eval(
         gpu_device=gpu_device,
         gpu_batch_size=gpu_batch_size,
     )
+    _, nlabels = np.unique(labels, return_counts=True)
     # create the dask array as a single chunk
     return da.from_array(labels,
-                         chunks=(1,) * spatial_ndims)
+                         chunks=(1,) * spatial_ndims), nlabels
 
 
 def process_block(
