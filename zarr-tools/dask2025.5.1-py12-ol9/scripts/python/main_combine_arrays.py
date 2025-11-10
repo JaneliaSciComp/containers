@@ -146,7 +146,7 @@ def _define_args():
                                   action='store_true',
                                   default=False,
                                   help='use threads instead of processes for local dask')
-    distributed_args.add_argument('--partition-size', '--partition_size',
+    distributed_args.add_argument('-ps', '--partition-size', '--partition_size',
                                   dest='partition_size',
                                   type=int,
                                   default=100000,
