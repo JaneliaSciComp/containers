@@ -52,20 +52,20 @@ def _define_args():
     args_parser.add_argument('-i','--input',
                              dest='input',
                              type=str,
-                             help = "input directory")
+                             help = "Input image to be segmented - it can be a directory path for zarr or N5 or file path for tiff")
     args_parser.add_argument('--input-subpath', '--input_subpath',
                              dest='input_subpath',
                              type=str,
-                             help = "input subpath")
+                             help = "Input dataset subpath in case the input image is a zarr or N5 container")
     args_parser.add_argument('--timeindex',
                              dest='input_timeindex',
                              type=int,
                              default=0,
-                             help = "input time index")
+                             help = "Time index in case the input is an OME-ZARR container")
     args_parser.add_argument('--input-channels', '--input_channels',
                              dest='input_channels',
                              type=_intlist,
-                             help = "input segmentation channels")
+                             help = "Input segmentation channels")
 
     args_parser.add_argument('--voxel-spacing', '--voxel_spacing',
                              dest='voxel_spacing',
@@ -84,11 +84,11 @@ def _define_args():
     args_parser.add_argument('-o','--output',
                              dest='output',
                              type=str,
-                             help = "output file")
+                             help = "output image name - it can be a directory path for zarr or N5 or file path for TIFF")
     args_parser.add_argument('--output-subpath', '--output_subpath',
                              dest='output_subpath',
                              type=str,
-                             help = "output subpath")
+                             help = "output dataset subpath")
     args_parser.add_argument('--output-chunk-size', '--output_chunk_size',
                              dest='output_chunk_size',
                              default=128,
@@ -193,7 +193,7 @@ def _define_args():
     
     distributed_args.add_argument('--logging-config', dest='logging_config',
                                   type=str,
-                                  help='Logging configuration')
+                                  help='python log file configuration')
 
     return args_parser
 
