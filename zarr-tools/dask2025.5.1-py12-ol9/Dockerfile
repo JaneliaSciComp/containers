@@ -5,7 +5,7 @@ RUN dnf group install -y "Development Tools"
 
 COPY conda-env.yml /tmp/
 
-RUN mamba env update -n base -f /tmp/conda-env.yml
+RUN mamba env update -n base -f /tmp/conda-env.yml -v
 
 WORKDIR /opt/scripts/zarr-tools
 
@@ -14,5 +14,4 @@ RUN mkdir -p /etc/zarr-tools/config
 COPY configs/* /etc/zarr-tools/config/
 COPY scripts/python /opt/scripts/zarr-tools
 
-RUN pip install --no-cache-dir --root-user-action ignore -e . \
- && mamba clean --all -y
+RUN pip install --no-cache-dir --root-user-action ignore -e .
