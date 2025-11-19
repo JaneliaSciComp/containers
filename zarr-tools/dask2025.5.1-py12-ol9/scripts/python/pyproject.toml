@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=70", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zarr-tools"
+version = "0.1.0"
+description = "ZARR Tools for handling OME-ZARR, multiscale"
+license = "BSD-3-Clause"
+requires-python = ">=3.12"
+dependencies = [
+    "dask==2025.5.1",
+    "distributed==2025.5.1",
+    "numpy>=1.26.0,<2",
+    "ome-zarr-models==0.1.6",
+    "pydantic==2.7.1",
+    "pyyaml",
+    "tornado",
+    "xarray-multiscale==2.1.0",
+    "zarr==2.18.7",
+]
