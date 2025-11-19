@@ -1,9 +1,11 @@
 FROM ghcr.io/janeliascicomp/zarr-tools:dask2025.5.1-py12-ol9
+ARG CELLPOSE_TOOLS_BRANCH=main
+ARG CELLPOSE_TOOLS_COMMIT=3014b7c
 
 LABEL software="cellpose"
 LABEL version="4"
 LABEL base_image="janeliascicomp/dask:2025.5.1-py12-ol9"
-LABEL software.version="4.0.6-dask2025.5.1-py12"
+LABEL software.version="4.0.7-dask2025.5.1-py12"
 LABEL about.summary="A generalist algorithm for cell and nucleus segmentation."
 LABEL about.home="https://github.com/MouseLand/cellpose"
 LABEL about.license="BSD-3-Clause"
@@ -19,16 +21,17 @@ LABEL bioimagetools.image.authors="goinac@janelia.hhmi.org,rokickik@janelia.hhmi
 
 RUN dnf group install -y "Development Tools"
 
-COPY conda-env.yml /tmp/
-
-RUN mamba env update -n base -f /tmp/conda-env.yml
-
 WORKDIR /opt/scripts/cellpose
 
-RUN mkdir -p /etc/cellpose/config
+RUN git clone --branch ${CELLPOSE_TOOLS_BRANCH} --depth 1 --progress https://github.com/JaneliaSciComp/cellpose-tools.git . \
+ && git reset --hard ${CELLPOSE_TOOLS_COMMIT}
 
-COPY configs/* /etc/cellpose/config/
-COPY scripts/python /opt/scripts/cellpose
+ENV PIP_ROOT_USER_ACTION=ignore
 
-RUN pip install --no-cache-dir --root-user-action ignore -e . \
- && mamba clean --all -y
+RUN  mamba env update -n base -f conda-env.yml
+
+RUN pip install --root-user-action ignore -e .
+
+RUN mkdir -p /etc/cellpose/config \
+ && cp configs/* /etc/cellpose/config
+

@@ -55,8 +55,8 @@ function build_podman() {
     ${BUILD_CMD[@]}
 
     if [[ "${push_arg}" == "--push" ]]; then
-	echo "Push container $tag"
-	podman manifest push $tag
+	    echo "Push container $tag"
+	    podman manifest push $tag
     fi
 }
 
