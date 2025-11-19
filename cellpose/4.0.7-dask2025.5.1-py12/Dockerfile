@@ -1,10 +1,10 @@
 FROM ghcr.io/janeliascicomp/zarr-tools:dask2025.5.1-py12-ol9
 ARG CELLPOSE_TOOLS_BRANCH=main
-ARG CELLPOSE_TOOLS_COMMIT=3014b7c
+ARG CELLPOSE_TOOLS_COMMIT=870490b
 
 LABEL software="cellpose"
 LABEL version="4"
-LABEL base_image="janeliascicomp/dask:2025.5.1-py12-ol9"
+LABEL base_image="janeliascicomp/zarr-tools:dask2025.5.1-py12-ol9"
 LABEL software.version="4.0.7-dask2025.5.1-py12"
 LABEL about.summary="A generalist algorithm for cell and nucleus segmentation."
 LABEL about.home="https://github.com/MouseLand/cellpose"
@@ -31,6 +31,9 @@ ENV PIP_ROOT_USER_ACTION=ignore
 RUN  mamba env update -n base -f conda-env.yml
 
 RUN pip install --root-user-action ignore -e .
+
+RUN mamba clean -a -y \
+ && rm -rf ~/.cache
 
 RUN mkdir -p /etc/cellpose/config \
  && cp configs/* /etc/cellpose/config

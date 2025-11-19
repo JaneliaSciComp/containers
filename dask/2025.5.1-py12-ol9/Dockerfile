@@ -40,11 +40,15 @@ ENV PATH=/opt/mambaforge/bin:${PATH}
 
 COPY conda-env.yml /tmp/
 
+ENV PIP_ROOT_USER_ACTION=ignore
 ENV NUMBA_CACHE_DIR=/tmp/numba_cache
+
+RUN mkdir -p ${NUMBA_CACHE_DIR}
 
 RUN mamba env update -n base -f /tmp/conda-env.yml
 
-RUN rm -rf /opt/mambaforge/pkgs
+RUN mamba clean -a -y \
+ && rm -rf ~/.cache
 
 WORKDIR /opt/scripts/daskscripts
 
