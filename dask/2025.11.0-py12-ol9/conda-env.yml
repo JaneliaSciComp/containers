@@ -13,7 +13,7 @@ dependencies:
   - jq=1.6
   - jupyter-server-proxy
   - lz4>=4.3.2
-  - msgpack-python=1.0.7
+  - msgpack-python=1.1.2
   - nomkl
   - numpy=2.3.5
   - numcodecs=0.16.1

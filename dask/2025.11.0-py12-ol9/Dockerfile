@@ -59,3 +59,7 @@ COPY scripts/* /opt/scripts/daskscripts/
 COPY config /opt/scripts/daskscripts/config
 
 RUN chmod 755 /opt/scripts/daskscripts/*.sh
+
+# clean installer's cache 
+ RUN dnf clean all \
+  && rm -rf /var/cache/dnf
