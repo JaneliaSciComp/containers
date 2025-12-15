@@ -1,7 +1,7 @@
 # Create final image
 FROM  ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG ZARR_TOOLS_BRANCH=dev
-ARG ZARR_TOOLS_COMMIT=5e5d67c
+ARG ZARR_TOOLS_COMMIT=16271a6
 
 LABEL software="zarr-tools"
 LABEL version="4"
@@ -28,7 +28,7 @@ RUN mamba clean -a -y
 RUN mkdir -p /etc/zarr-tools/config \
  && cp configs/* /etc/zarr-tools/config
 
-  # Remove dev tools
- RUN dnf groupremove -y "Development Tools" \
+# Remove dev tools
+RUN dnf group remove -y "Development Tools" \
   && dnf clean all \
   && rm -rf /var/cache/dnf

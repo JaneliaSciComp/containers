@@ -1,6 +1,6 @@
 FROM ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG CELLPOSE_TOOLS_BRANCH=dev
-ARG CELLPOSE_TOOLS_COMMIT=b6b09a4
+ARG CELLPOSE_TOOLS_COMMIT=2b6c781
 
 LABEL software="cellpose"
 LABEL version="4"
@@ -39,6 +39,6 @@ RUN mkdir -p /etc/cellpose/config \
  && cp configs/* /etc/cellpose/config
 
  # Remove dev tools
- RUN dnf groupremove -y "Development Tools" \
+ RUN dnf group remove -y "Development Tools" \
   && dnf clean all \
   && rm -rf /var/cache/dnf
