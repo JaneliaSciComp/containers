@@ -1,7 +1,7 @@
 # Create final image
 FROM ghcr.io/janeliascicomp/zarr-tools:0.3.0-dask2025.11.0-py12-ol9
 ARG BIGSTREAM_BRANCH=ome-dev
-ARG BIGSTREAM_COMMIT=5a626f9
+ARG BIGSTREAM_COMMIT=d578f5f
 
 RUN dnf install -y \
         git \

@@ -1,6 +1,6 @@
 FROM oraclelinux:9
 ARG SPOTS_TOOLS_BRANCH=main
-ARG SPOTS_TOOLS_COMMIT=4155a32
+ARG SPOTS_TOOLS_COMMIT=5365b0a
 
 RUN dnf install -y \
     tar wget git
