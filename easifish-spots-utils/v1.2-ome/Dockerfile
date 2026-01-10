@@ -17,7 +17,7 @@ WORKDIR /opt/scripts/spots-utils
 RUN git clone --branch ${SPOTS_TOOLS_BRANCH} --depth 1 --progress https://github.com/JaneliaSciComp/easifish-spots-tools.git . \
  && git reset --hard ${SPOTS_TOOLS_COMMIT}
 
- ENV PIP_ROOT_USER_ACTION=ignore
+ENV PIP_ROOT_USER_ACTION=ignore
 
 RUN mamba env update -n base -f conda-env.yml \
  && pip install --root-user-action ignore -e .

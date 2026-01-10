@@ -5,6 +5,8 @@ set -euo pipefail
 function build_docker() {
     local path="$1"
     shift
+    # Normalize path by removing leading './' if present
+    path="${path#./}"
     local container=$(echo $path | cut -d '/' -f 1)
     local version=$(echo $path | cut -d '/' -f 2)
 
@@ -29,6 +31,8 @@ function build_podman() {
     shift
     local path="$1"
     shift
+    # Normalize path by removing leading './' if present
+    path="${path#./}"
     local container=$(echo $path | cut -d '/' -f 1)
     local version=$(echo $path | cut -d '/' -f 2)
 
