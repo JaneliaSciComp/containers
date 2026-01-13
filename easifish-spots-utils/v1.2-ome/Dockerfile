@@ -1,27 +1,29 @@
-FROM oraclelinux:9
+FROM ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG SPOTS_TOOLS_BRANCH=main
-ARG SPOTS_TOOLS_COMMIT=5365b0a
+ARG SPOTS_TOOLS_COMMIT=05b3785
 
 RUN dnf install -y \
-    tar wget git
-
-# Install miniconda
-RUN wget https://github.com/conda-forge/miniforge/releases/download/25.11.0-1/Miniforge3-25.11.0-1-Linux-$(uname -m).sh \
-    -O mamba-install.sh && \
-    bash mamba-install.sh -b -p /opt/mambaforge
-
-ENV PATH=/opt/mambaforge/bin:${PATH}
+    tar git
 
 WORKDIR /opt/scripts/spots-utils
 
 RUN git clone --branch ${SPOTS_TOOLS_BRANCH} --depth 1 --progress https://github.com/JaneliaSciComp/easifish-spots-tools.git . \
  && git reset --hard ${SPOTS_TOOLS_COMMIT}
 
+ENV MKL_NUM_THREADS=
+ENV NUM_MKL_THREADS=
+ENV OPENBLAS_NUM_THREADS=
+ENV OPENMP_NUM_THREADS=
+ENV OMP_NUM_THREADS=
+
 ENV PIP_ROOT_USER_ACTION=ignore
 
-RUN mamba env update -n base -f conda-env.yml \
- && pip install --root-user-action ignore -e .
+# Use the base environment from the baseImage
+RUN mamba env update -n base -f conda-env.yaml
+RUN echo ${SPOTS_TOOLS_COMMIT} > .commit
 
-RUN mamba clean -a -y \
- && rm -rf ~/.cache \
- && dnf clean all
+RUN pip install --root-user-action ignore -e .
+
+# Remove dev tools
+RUN dnf clean all \
+ && rm -rf /var/cache/dnf

@@ -25,8 +25,6 @@ ENV OMP_NUM_THREADS=
 
 ENV PIP_ROOT_USER_ACTION=ignore
 
-ENV PYTHONPATH=/app/bigstream
-
 # Use the base environment from the baseImage
 RUN mamba env update -n base -f conda-env.yaml
 RUN echo ${BIGSTREAM_COMMIT} > .commit
