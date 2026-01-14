@@ -1,17 +1,9 @@
-FROM oraclelinux:9
+FROM ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG SPOTS_TOOLS_BRANCH=main
 ARG SPOTS_TOOLS_COMMIT=ed02523
-ARG TARGETPLATFORM
 
 RUN dnf install -y \
-    tar wget git
-
-# Install miniconda
-RUN wget https://github.com/conda-forge/miniforge/releases/download/25.11.0-1/Miniforge3-25.11.0-1-Linux-$(uname -m).sh \
-    -O mamba-install.sh && \
-    bash mamba-install.sh -b -p /opt/mambaforge
-
-    ENV PATH=/opt/mambaforge/bin:${PATH}
+    tar git
 
 WORKDIR /opt/scripts/spots-utils
 
