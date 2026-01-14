@@ -1,6 +1,6 @@
 FROM ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG SPOTS_TOOLS_BRANCH=main
-ARG SPOTS_TOOLS_COMMIT=ed02523
+ARG SPOTS_TOOLS_COMMIT=bbfd629
 
 RUN dnf install -y \
     tar git
