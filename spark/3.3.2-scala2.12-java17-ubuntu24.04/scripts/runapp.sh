@@ -11,7 +11,7 @@ spark_uri=$1; shift
 app_jar_file=$1; shift
 main_class=$1; shift
 parallelism=$1; shift
-worker_cores=$1; shift
+executor_cores=$1; shift
 executor_memory=$1; shift
 driver_cores=$1; shift
 driver_memory=$1; shift
@@ -75,7 +75,7 @@ CMD=(
     --conf spark.files.openCostInBytes=0
     --conf spark.default.parallelism=${parallelism}
     ${additional_spark_config[@]}
-    --executor-cores ${worker_cores}
+    --executor-cores ${executor_cores}
     --executor-memory ${executor_memory}
     --driver-cores ${driver_cores}
     --driver-memory ${driver_memory}
