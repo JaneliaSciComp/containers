@@ -1,6 +1,6 @@
 FROM ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG CELLPOSE_TOOLS_BRANCH=dev
-ARG CELLPOSE_TOOLS_COMMIT=695281d
+ARG CELLPOSE_TOOLS_COMMIT=2447f23
 
 LABEL software="cellpose"
 LABEL version="4"
