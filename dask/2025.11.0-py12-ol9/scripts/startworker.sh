@@ -60,7 +60,7 @@ function cleanup() {
     echo "Killing background processes for ${worker_name}"
     if [[ -f "${worker_pid_file}" ]]; then
         local wpid=$(cat "${worker_pid_file}")
-        kill "$wpid"
+        kill "$wpid" || true
     fi
     exit 0
 }

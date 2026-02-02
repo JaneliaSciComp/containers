@@ -1,7 +1,7 @@
 ARG SPARK_VERSION=3.3.2-scala2.12-java17-ubuntu24.04
 ARG RS_FISH_REPO=https://github.com/cgoina/RS-FISH-Spark.git
 ARG RS_FISH_BRANCH=ome
-ARG RS_FISH_SPARK_GIT_HASH=991935b
+ARG RS_FISH_SPARK_GIT_HASH=ded148b
 
 # Staged build using builder container with java8
 # because Bigstitcher still needs java8 to build
