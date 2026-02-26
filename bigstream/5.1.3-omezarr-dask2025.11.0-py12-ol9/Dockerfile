@@ -1,7 +1,7 @@
 # Create final image
 FROM ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG BIGSTREAM_BRANCH=ome-dev
-ARG BIGSTREAM_COMMIT=5822bde
+ARG BIGSTREAM_COMMIT=06429d5
 
 LABEL software="BigStream"
 LABEL version="5"
