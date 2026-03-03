@@ -1,7 +1,7 @@
 # Create final image
 FROM ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG BIGSTREAM_BRANCH=ome-dev
-ARG BIGSTREAM_COMMIT=06429d5
+ARG BIGSTREAM_COMMIT=4a34f0b
 
 LABEL software="BigStream"
 LABEL version="5"
@@ -43,7 +43,7 @@ RUN mamba env update -n base -f conda-env.yaml
 RUN echo ${BIGSTREAM_COMMIT} > .commit
 
 RUN pip install --root-user-action ignore -e . \
- && pip install "zarr-tools @ git+https://github.com/JaneliaSciComp/zarr-tools.git@74dce46"
+ && pip install "zarr-tools @ git+https://github.com/JaneliaSciComp/zarr-tools.git@1bea365"
 
 # Remove dev tools
 RUN dnf clean all \
