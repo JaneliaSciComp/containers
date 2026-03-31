@@ -68,6 +68,8 @@ RUN mkdir sparkinstall; \
     rm -rf sparkinstall;
 
 ENV SPARK_HOME=/opt/spark
+# on Linux we only need the dir for hadoop.home.dir to exist
+ENV HADOOP_HOME=/opt/spark
 WORKDIR /opt/spark//work-dir
 
 ENV SPARK_WORK_DIR=/opt/spark//work-dir

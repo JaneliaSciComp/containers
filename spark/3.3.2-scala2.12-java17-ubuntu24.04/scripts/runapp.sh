@@ -66,6 +66,12 @@ set -x
 # The default (4MB) open cost consolidates files into tiny partitions regardless of 
 # the number of cores. By forcing this parameter to zero, we can specify the exact 
 # parallelism that we want.
+if [[ $parallelism -gt 0 ]]; then
+    parallelism_conf="--conf spark.default.parallelism=${parallelism}"
+else
+    parallelism_conf=
+fi
+
 CMD=(
     /opt/spark/bin/spark-class
     org.apache.spark.deploy.SparkSubmit
@@ -73,7 +79,7 @@ CMD=(
     --master ${spark_uri}
     --class ${main_class}
     --conf spark.files.openCostInBytes=0
-    --conf spark.default.parallelism=${parallelism}
+    ${parallelism_conf}
     ${additional_spark_config[@]}
     --executor-cores ${executor_cores}
     --executor-memory ${executor_memory}
