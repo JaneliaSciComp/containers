@@ -1,12 +1,12 @@
 # Create final image
 FROM ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG BIGSTREAM_BRANCH=ome-dev
-ARG BIGSTREAM_COMMIT=622f823
+ARG BIGSTREAM_COMMIT=efdacac
 
 LABEL software="BigStream"
 LABEL version="5"
 LABEL base_image="janeliascicomp/dask:2025.11.0-py12-ol9"
-LABEL software.version="5.1.3-omezarr-dask2025.11.0-py12-ol9"
+LABEL software.version="5.1.4-omezarr-dask2025.11.0-py12-ol9"
 LABEL about.summary="A wrapper of several SimpleITK algorithms for running blockwise image registration."
 LABEL about.home="https://github.com/JaneliaSciComp/bigstream"
 LABEL about.license="BSD-3-Clause"
