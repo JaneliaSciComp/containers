@@ -1,7 +1,7 @@
 # Create final image
 FROM  ghcr.io/janeliascicomp/dask:2025.11.0-py12-ol9
 ARG ZARR_TOOLS_BRANCH=main
-ARG ZARR_TOOLS_COMMIT=91c51c0
+ARG ZARR_TOOLS_COMMIT=f52c412
 
 LABEL software="zarr-tools"
 LABEL version="4"
