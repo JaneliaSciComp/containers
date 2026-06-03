@@ -1,8 +1,8 @@
 #!/bin/bash -ue
 DIR=$(cd "$(dirname "$0")"; pwd)
 
-scheduler_address=
-cluster_work_dir=
+spark_uri=
+spark_work_dir=
 terminate_file=
 declare -i worker_start_timeout=-1
 declare -i worker_poll_interval=1
@@ -13,8 +13,8 @@ while [[ $# > 0 ]]; do
     key="$1"
     shift # past the key
     case $key in
-        --cluster-work-dir)
-            cluster_work_dir=$1
+        --spark-work-dir)
+            spark_work_dir=$1
             shift
             ;;
         --worker-start-timeout)
@@ -37,8 +37,8 @@ while [[ $# > 0 ]]; do
             terminate_file=$1
             shift
             ;;
-        --scheduler-address)
-            scheduler_address=$1
+        --spark-uri)
+            spark_uri=$1
             shift
             ;;
         *)
@@ -57,19 +57,19 @@ if (( ${required_workers} > 0 )); then
         fi
         available_workers=0
         for (( worker_id=1; worker_id<=${total_workers}; worker_id++ )); do
-            worker_name="worker-${worker_id}"
-            worker_log="${cluster_work_dir}/${worker_name}/${worker_name}.log"
+            worker_logfile="sparkworker-${worker_id}.log"
+            worker_logpath="${spark_work_dir}/${worker_logfile}"
             # if worker's log exists check if the worker has connected to the scheduler
-            echo "Check ${worker_log}"
-            if [[ -e "${worker_log}" ]]; then
-                found=`grep -o "Registered to:.*${scheduler_address}" ${worker_log} || true`
+            echo "Check ${worker_logpath}"
+            if [[ -e "${worker_logpath}" ]]; then
+                found=`grep -o "\(Worker: Successfully registered with master ${spark_uri}\)" ${worker_logpath} || true`
                 if [[ ! -z ${found} ]]; then
-                    echo "${found}"
+                    echo "${worker_logpath}: ${found}"
                     available_workers=$(( ${available_workers} + 1 ))
                 fi
             fi
         done
-        echo "Found ${available_workers} after ${seconds}"
+        echo "Found ${available_workers} workers after ${seconds} secs"
         # in case somebody forgets to adjust the required workers check also if it is equal to total_workers
         if (( ${available_workers} >= ${total_workers} || ${available_workers} >= ${required_workers} )); then
             echo "Found ${available_workers} connected workers"
@@ -86,3 +86,5 @@ if (( ${required_workers} > 0 )); then
 else
     available_workers=-1
 fi
+
+echo "${available_workers}" > "${spark_work_dir}/available_workers.txt"
