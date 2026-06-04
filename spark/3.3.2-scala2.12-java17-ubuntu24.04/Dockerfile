@@ -25,6 +25,7 @@ RUN set -ex; \
         wget curl tar tini libc6 libpam-modules \
         gnupg2 ca-certificates \
         krb5-user libnss3 procps net-tools hostname gosu \
+        procps \
         libnss-wrapper \
         python3 python3-pip;
 
