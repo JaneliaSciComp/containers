@@ -51,7 +51,7 @@ WORKDIR /tmp
 
 RUN mkdir sparkinstall; \
     cd sparkinstall; \
-    wget https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz -O spark.tgz; \
+    wget https://www.apache.org/dyn/closer.lua/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz?action=download -O spark.tgz; \
     tar -xf spark.tgz --strip-components=1; \
     chown -R spark:spark .; \
     mv jars /opt/spark/; \
