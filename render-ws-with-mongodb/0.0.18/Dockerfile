@@ -66,7 +66,8 @@ RUN ./render-ws/src/main/scripts/install.sh && \
     cp ./render-ws-with-mongo-db/*.sh . && \
     chmod 755 *.sh && \
     cp -r ./render-ws-with-mongo-db/other . && \
-    chmod 755 other/*.sh
+    chmod 755 other/*.sh && \
+    cp -r ./render-ws-with-mongo-db/test .
 
 # 4. Build only the render-app and render-ws modules and skip tests
 RUN { echo 'JAVA_HOME="$(readlink -m ./deploy/*jdk*)"'; } >> ~/.mavenrc  && \
@@ -102,8 +103,8 @@ RUN wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key 
 # expose the render port
 EXPOSE 8080
 
-# Use shell form of CMD so that optional arguments passed to `docker run` are forwarded
+# Use ENTRYPOINT so that optional arguments passed to `docker run` are forwarded
 # to startup_mongodb_and_jetty.sh as positional parameters:
 #   $1  HEADROOM_MEM_GB  (default: 8)
 #   $2  TEST_DATA_DIR    (optional mongodump directory; triggers mongorestore before Jetty starts)
-CMD ["./startup_mongodb_and_jetty.sh"]
+ENTRYPOINT ["./startup_mongodb_and_jetty.sh"]
