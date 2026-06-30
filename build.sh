@@ -100,17 +100,17 @@ fi
 
 case $tool in
     docker)
-	if [[ -z "${push_container_arg}" ]]; then
-	    args+=("--load")
-	else
-	    args+=(${push_container_arg})
-	fi
-	build_docker "${args[@]}"
-	;;
+        if [[ -z "${push_container_arg}" ]]; then
+            args+=("--load")
+        else
+            args+=(${push_container_arg})
+        fi
+        build_docker "${args[@]}"
+        ;;
     podman)
-	if [[ -z "${push_container_arg}" ]]; then
-	    push_container_arg="--load"
-	fi
-	build_podman ${push_container_arg} "${args[@]}"
-	;;
+        if [[ -z "${push_container_arg}" ]]; then
+            push_container_arg="--load"
+        fi
+        build_podman ${push_container_arg} "${args[@]}"
+        ;;
 esac
