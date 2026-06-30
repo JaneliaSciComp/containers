@@ -5,7 +5,7 @@ FROM oraclelinux:9
 LABEL software="Dask"
 LABEL version="2026"
 LABEL base_image="oraclelinux:9"
-LABEL software.version="2026.6.1-py12-ol9"
+LABEL software.version="2026.6.0-py12-ol9"
 LABEL about.summary="Dask is a flexible library for parallel computing in Python."
 LABEL about.home="https://www.dask.org"
 LABEL about.license="BSD-3-Clause"
