@@ -18,7 +18,8 @@ LABEL bioimagetools.image.authors="fleishmang@janelia.hhmi.org,goinac@janelia.hh
 
 RUN dnf install -y \
         git \
-        mesa-libGL
+        mesa-libGL \
+        libzstd-devel
 
 WORKDIR /app/bigstream
 
@@ -36,13 +37,15 @@ ENV OPENBLAS_NUM_THREADS=
 ENV OPENMP_NUM_THREADS=
 ENV OMP_NUM_THREADS=
 
+ENV PYTHONPATH=/app/bigstream
+ENV ITKWASM_CACHE_DIR=/tmp
 ENV PIP_ROOT_USER_ACTION=ignore
 
 # Use the base environment from the baseImage
 RUN mamba env update -n base -f conda-env.yaml
 RUN echo ${BIGSTREAM_COMMIT} > .commit
 
-RUN pip install --root-user-action ignore -e . \
+RUN pip install -e . \
  && pip install "zarr-tools @ git+https://github.com/JaneliaSciComp/zarr-tools.git@1ad0a43"
 
 # Remove dev tools

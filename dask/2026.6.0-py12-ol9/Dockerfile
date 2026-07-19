@@ -32,7 +32,7 @@ RUN dnf update -y && \
         which
 
 # Install miniconda
-RUN wget https://github.com/conda-forge/miniforge/releases/download/25.11.0-1/Miniforge3-25.11.0-1-Linux-$(uname -m).sh \
+RUN wget https://github.com/conda-forge/miniforge/releases/download/26.3.2-3/Miniforge3-26.3.2-3-Linux-$(uname -m).sh \
     -O mamba-install.sh && \
     bash mamba-install.sh -b -p /opt/mambaforge
 
@@ -45,7 +45,7 @@ ENV NUMBA_CACHE_DIR=/tmp/numba_cache
 
 RUN mkdir -p ${NUMBA_CACHE_DIR}
 
-RUN mamba env update -n base -f /tmp/conda-env.yml
+RUN mamba env update -n base -f /tmp/conda-env.yml -y
 
 RUN mamba clean -a -y \
  && rm -rf ~/.cache
