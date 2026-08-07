@@ -1,6 +1,6 @@
 FROM ghcr.io/janeliascicomp/dask:2026.6.0-py12-ol9
 ARG CELLPOSE_TOOLS_BRANCH=main
-ARG CELLPOSE_TOOLS_COMMIT=c2e556b
+ARG CELLPOSE_TOOLS_COMMIT=50dce8f
 
 LABEL software="cellpose"
 LABEL version="4"
@@ -29,6 +29,7 @@ RUN git clone --branch ${CELLPOSE_TOOLS_BRANCH} --depth 1 --progress https://git
 ENV PIP_ROOT_USER_ACTION=ignore
 
 RUN  mamba env update -n base -f conda-env.yml
+RUN echo "cellpose-tools:${CELLPOSE_TOOLS_BRANCH}:${CELLPOSE_TOOLS_COMMIT}" > .commit
 
 RUN pip install --root-user-action ignore -e .
 
